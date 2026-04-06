@@ -1,0 +1,147 @@
+# Architecture Notes
+
+## Overview
+
+Dinner Party Architect is a single-page application with all state kept on the client.
+
+The main layers are:
+
+- `PlannerApp.tsx`: state ownership and orchestration
+- `components/*`: UI panels for rooms, guests, and relationships
+- `planUtils.ts`: scoring, hydration, cloning, and auto-assignment logic
+- `plannerHelpers.ts`: UI-oriented helper utilities
+- `samplePlan.ts`: starter data used for onboarding and testing
+
+## Core data model
+
+### Guest
+
+Each guest stores:
+
+- `name`
+- `age`
+- `circle`
+- `partnerId`
+- `tags`
+- `notes`
+
+This keeps the model simple while still flexible enough for most real seating decisions.
+
+### Room
+
+Each room stores:
+
+- `name`
+- `notes`
+
+Rooms group tables and help with multi-space events.
+
+### Table
+
+Each table stores:
+
+- `roomId`
+- `name`
+- `shape`
+- `seatCount`
+- `notes`
+
+Seat assignments are stored separately inside the `seating` record so resizing a table is easier to manage.
+
+### Affinity
+
+An affinity links two guests with:
+
+- `guestAId`
+- `guestBId`
+- `score`
+- `note`
+
+Scores are symmetric. The UI treats `Alice + Bob` the same as `Bob + Alice`.
+
+## Seating representation
+
+Seating is stored as:
+
+```ts
+Record<tableId, Array<guestId | null>>
+```
+
+That choice makes several operations straightforward:
+
+- assign a guest to a precise seat
+- clear a seat
+- resize table capacity
+- compute adjacency
+- export and import without ambiguity
+
+## Auto-seating approach
+
+The app uses a heuristic rather than an exact optimization solver.
+
+### Why
+
+For a small local wedding planner, the tradeoff is good:
+
+- faster implementation
+- very responsive in the browser
+- easy to explain
+- easy to refine over time
+
+### What it does
+
+The engine:
+
+1. ranks guests by difficulty
+2. optionally clears all seating or only fills unseated guests
+3. tries multiple randomized greedy placement passes
+4. evaluates each resulting plan
+5. keeps the highest scoring result
+
+### Signals used in scoring
+
+- explicit affinity score
+- partner bonus
+- same circle bonus
+- shared tag bonus
+- age-band nudges
+- adjacency bonus
+- hard penalties for severe negative matches
+- penalties for separated partners
+- penalties for unseated guests
+
+This keeps the engine understandable and good enough for iterative planning.
+
+## Hydration and safety
+
+Imported JSON is normalized before use:
+
+- bad shapes are corrected
+- seat counts are clamped
+- invalid guest references are dropped
+- duplicate seated guests are deduplicated
+- broken partner references are removed
+
+This is important because local-first tools often live a long time and exported files can drift.
+
+## UI philosophy
+
+The UI aims for:
+
+- immediate visibility of the plan
+- no hidden admin screens
+- minimal jargon
+- strong defaults with manual override
+
+The current layout favors form clarity over dense spreadsheets because wedding planning is usually done by non-technical users.
+
+## Good next technical steps
+
+If the project continues, these improvements would bring the biggest payoff:
+
+- add drag and drop
+- introduce seat locks before optimization
+- add CSV import/export
+- split long state handlers into dedicated hooks
+- add unit tests around scoring and hydration
+- add Playwright coverage for the core flows
