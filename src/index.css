@@ -470,6 +470,46 @@ button.danger {
   color: #52613f;
 }
 
+.circle-manager-card {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.circle-add-grid {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.circle-add-grid .field.wide,
+.circle-add-grid button {
+  grid-column: auto;
+}
+
+.circle-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.circle-chip {
+  min-height: 36px;
+  padding-inline: 12px;
+  background: rgba(122, 139, 92, 0.14);
+  color: #52613f;
+  border-color: rgba(122, 139, 92, 0.22);
+}
+
+.circle-selectors {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.circle-selectors .field {
+  gap: 5px;
+}
+
 .guest-info {
   position: relative;
   display: inline-grid;
@@ -1023,6 +1063,11 @@ button.danger {
 
   .visual-table-core {
     width: 42%;
+  }
+
+  .circle-add-grid,
+  .circle-selectors {
+    grid-template-columns: 1fr;
   }
 
   .floating-unseated-list {

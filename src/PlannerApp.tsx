@@ -109,7 +109,7 @@ function addImportedGuests(planner: PlannerData, drafts: ImportedGuestDraft[]) {
       importId: draft.importId.trim() || null,
       name: draft.name,
       age: draft.age,
-      circle: draft.circle,
+      circles: draft.circles,
       partnerId: null,
       lockedTableId: draft.lockedTableName
         ? tableNameToId.get(normalizeGuestImportName(draft.lockedTableName)) ?? null
@@ -168,6 +168,9 @@ function addImportedGuests(planner: PlannerData, drafts: ImportedGuestDraft[]) {
     planner: {
       ...planner,
       guests: linkedGuests,
+      circles: Array.from(
+        new Set([...planner.circles, ...drafts.flatMap((draft) => draft.circles)]),
+      ).sort((first, second) => first.localeCompare(second)),
     },
     duplicateCount,
     importedCount,
@@ -270,7 +273,12 @@ function PlannerApp() {
         return true
       }
 
-      const haystack = [guest.name, guest.circle, guest.notes, formatTagString(guest.tags)]
+      const haystack = [
+        guest.name,
+        guest.circles.join(' '),
+        guest.notes,
+        formatTagString(guest.tags),
+      ]
         .join(' ')
         .toLowerCase()
 
@@ -304,6 +312,9 @@ function PlannerApp() {
     const guestName = guestDraft.name.trim()
     setPlanner((current) => ({
       ...current,
+      circles: Array.from(
+        new Set([...current.circles, ...guestDraft.circles]),
+      ).sort((first, second) => first.localeCompare(second)),
       guests: [
         ...current.guests,
         {
@@ -311,7 +322,7 @@ function PlannerApp() {
           importId: null,
           name: guestName,
           age: guestDraft.age ? clamp(Number(guestDraft.age), 0, 120) : null,
-          circle: guestDraft.circle.trim(),
+          circles: guestDraft.circles,
           partnerId: null,
           lockedTableId: null,
           tags: parseTagString(guestDraft.tags),
@@ -354,7 +365,7 @@ function PlannerApp() {
 
   function handleGuestFieldChange(
     guestId: string,
-    field: 'name' | 'age' | 'circle' | 'tags' | 'notes',
+    field: 'name' | 'age' | 'tags' | 'notes',
     value: string,
   ) {
     setPlanner((current) => ({
@@ -388,6 +399,78 @@ function PlannerApp() {
 
   function handlePartnerChange(guestId: string, value: string) {
     setPlanner((current) => setGuestPartner(current, guestId, value || null))
+  }
+
+  function handleGuestCirclesChange(guestId: string, circles: string[]) {
+    setPlanner((current) => ({
+      ...current,
+      guests: current.guests.map((guest) =>
+        guest.id === guestId
+          ? {
+              ...guest,
+              circles: Array.from(new Set(circles.filter(Boolean))).slice(0, 3),
+            }
+          : guest,
+      ),
+    }))
+  }
+
+  function handleAddCircle(circleName: string) {
+    const trimmedCircleName = circleName.trim()
+    if (!trimmedCircleName) {
+      setStatusMessage('Give the circle a name first.')
+      return
+    }
+
+    if (
+      planner.circles.some(
+        (circle) => circle.toLowerCase() === trimmedCircleName.toLowerCase(),
+      )
+    ) {
+      setStatusMessage(`Circle "${trimmedCircleName}" already exists.`)
+      return
+    }
+
+    setPlanner((current) => {
+      if (
+        current.circles.some(
+          (circle) => circle.toLowerCase() === trimmedCircleName.toLowerCase(),
+        )
+      ) {
+        return current
+      }
+
+      return {
+        ...current,
+        circles: [...current.circles, trimmedCircleName].sort((first, second) =>
+          first.localeCompare(second),
+        ),
+      }
+    })
+    setStatusMessage(`Added circle "${trimmedCircleName}".`)
+  }
+
+  function handleRemoveCircle(circleName: string) {
+    const confirmed = window.confirm(
+      `Remove the circle "${circleName}" from the planner and all guests?`,
+    )
+    if (!confirmed) {
+      return
+    }
+
+    setPlanner((current) => ({
+      ...current,
+      circles: current.circles.filter((circle) => circle !== circleName),
+      guests: current.guests.map((guest) => ({
+        ...guest,
+        circles: guest.circles.filter((circle) => circle !== circleName),
+      })),
+    }))
+    setGuestDraft((current) => ({
+      ...current,
+      circles: current.circles.filter((circle) => circle !== circleName),
+    }))
+    setStatusMessage(`Removed circle "${circleName}".`)
   }
 
   function handleGuestTableLockChange(guestId: string, tableId: string) {
@@ -917,6 +1000,7 @@ function PlannerApp() {
             >
               <option value="balanced">Balanced</option>
               <option value="social">Keep social groups together</option>
+              <option value="bridge">Bridge groups without isolating guests</option>
               <option value="strict">Strict rules first</option>
             </select>
           </label>
@@ -999,14 +1083,20 @@ function PlannerApp() {
             onGuestDraftChange={(field, value) =>
               setGuestDraft((current) => ({ ...current, [field]: value }))
             }
+            onGuestDraftCirclesChange={(circles) =>
+              setGuestDraft((current) => ({ ...current, circles }))
+            }
             onAddGuest={handleAddGuest}
             onGuestSearchChange={setGuestSearch}
-          onGuestFieldChange={handleGuestFieldChange}
-          onPartnerChange={handlePartnerChange}
-          onGuestTableLockChange={handleGuestTableLockChange}
-          onRemoveGuest={handleRemoveGuest}
-          onImportGuests={handleImportGuests}
-        />
+            onGuestFieldChange={handleGuestFieldChange}
+            onGuestCirclesChange={handleGuestCirclesChange}
+            onPartnerChange={handlePartnerChange}
+            onGuestTableLockChange={handleGuestTableLockChange}
+            onRemoveGuest={handleRemoveGuest}
+            onImportGuests={handleImportGuests}
+            onAddCircle={handleAddCircle}
+            onRemoveCircle={handleRemoveCircle}
+          />
 
           <RelationshipsPanel
             planner={planner}

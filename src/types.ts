@@ -5,14 +5,14 @@ export interface Guest {
   importId: string | null
   name: string
   age: number | null
-  circle: string
+  circles: string[]
   partnerId: string | null
   lockedTableId: string | null
   tags: string[]
   notes: string
 }
 
-export type AutoAssignStrategy = 'balanced' | 'social' | 'strict'
+export type AutoAssignStrategy = 'balanced' | 'social' | 'bridge' | 'strict'
 
 export interface Room {
   id: string
@@ -42,6 +42,7 @@ export interface PlannerData {
   rooms: Room[]
   tables: Table[]
   guests: Guest[]
+  circles: string[]
   affinities: Affinity[]
   seating: Record<string, Array<string | null>>
 }

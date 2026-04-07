@@ -1,4 +1,4 @@
-import { formatTagString } from '../planUtils'
+import { formatCircleString, formatTagString } from '../planUtils'
 import { formatGuestLabel } from '../guestDisplay'
 import type { Guest, PlannerData } from '../types'
 
@@ -70,8 +70,12 @@ function GuestInfoPopover({
             <dd>{getDisplayValue(guest.age)}</dd>
           </div>
           <div>
-            <dt>Circle</dt>
-            <dd>{getDisplayValue(guest.circle)}</dd>
+            <dt>Circles</dt>
+            <dd>
+              {guest.circles.length
+                ? formatCircleString(guest.circles)
+                : 'No circles'}
+            </dd>
           </div>
           <div>
             <dt>Tags</dt>

@@ -1,10 +1,10 @@
-import { parseTagString } from './planUtils'
+import { parseCircleString, parseTagString } from './planUtils'
 
 export interface ImportedGuestDraft {
   importId: string
   name: string
   age: number | null
-  circle: string
+  circles: string[]
   tags: string[]
   notes: string
   partnerName: string
@@ -19,10 +19,21 @@ export interface GuestImportResult {
 
 const headerAliases = {
   importId: ['id', 'guestid', 'inviteid', 'importid'],
-  name: ['name', 'guest', 'invite', 'invité', 'prenom', 'prénom', 'nom'],
-  age: ['age', 'âge'],
-  circle: ['circle', 'group', 'groupe', 'family', 'famille', 'side', 'cote', 'côté'],
-  tags: ['tags', 'tag', 'labels', 'categories', 'catégories'],
+  name: ['name', 'guest', 'invite', 'prenom', 'nom'],
+  age: ['age'],
+  circles: [
+    'circle',
+    'circles',
+    'group',
+    'groups',
+    'groupe',
+    'groupes',
+    'family',
+    'famille',
+    'side',
+    'cote',
+  ],
+  tags: ['tags', 'tag', 'labels', 'categories'],
   notes: ['notes', 'note', 'comment', 'comments', 'commentaire', 'remarque'],
   partnerName: ['partnername', 'couple', 'conjointname', 'conjointnom', 'spouse'],
   partnerImportId: ['partner', 'partnerid', 'partnerimportid', 'conjointid'],
@@ -119,7 +130,10 @@ function rowToGuest(
       indexes.importId === undefined ? '' : cells[indexes.importId]?.trim() ?? '',
     name,
     age: indexes.age === undefined ? null : parseAge(cells[indexes.age] ?? ''),
-    circle: indexes.circle === undefined ? '' : cells[indexes.circle]?.trim() ?? '',
+    circles:
+      indexes.circles === undefined
+        ? []
+        : parseCircleString(cells[indexes.circles] ?? ''),
     tags: indexes.tags === undefined ? [] : parseTags(cells[indexes.tags] ?? ''),
     notes: indexes.notes === undefined ? '' : cells[indexes.notes]?.trim() ?? '',
     partnerName:
@@ -172,7 +186,7 @@ export function parseGuestImport(text: string): GuestImportResult {
     : {
         name: 0,
         age: 1,
-        circle: 2,
+        circles: 2,
         tags: 3,
         notes: 4,
         partnerName: 5,

@@ -3,7 +3,7 @@ import type { TableShape } from './types'
 export interface GuestDraft {
   name: string
   age: string
-  circle: string
+  circles: string[]
   tags: string
   notes: string
 }
@@ -38,7 +38,7 @@ export interface GuestSeatInfo {
 export const emptyGuestDraft: GuestDraft = {
   name: '',
   age: '',
-  circle: '',
+  circles: [],
   tags: '',
   notes: '',
 }

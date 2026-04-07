@@ -29,8 +29,23 @@ export function parseTagString(value: string) {
   )
 }
 
+export function parseCircleString(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(/[,|;/]+/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ).slice(0, 3)
+}
+
 export function formatTagString(tags: string[]) {
   return tags.join(', ')
+}
+
+export function formatCircleString(circles: string[]) {
+  return circles.join(', ')
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -43,6 +58,12 @@ function asString(value: unknown, fallback = '') {
 
 function asNumber(value: unknown, fallback = 0) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function normalizeCircles(values: string[]) {
+  return Array.from(
+    new Set(values.map((item) => item.trim()).filter(Boolean)),
+  ).slice(0, 3)
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -66,7 +87,9 @@ function normalizeGuest(value: unknown): Guest | null {
       typeof value.age === 'number' && Number.isFinite(value.age)
         ? clamp(Math.round(value.age), 0, 120)
         : null,
-    circle: asString(value.circle),
+    circles: Array.isArray(value.circles)
+      ? normalizeCircles(value.circles.map((item) => asString(item)))
+      : parseCircleString(asString(value.circle)),
     partnerId: typeof value.partnerId === 'string' ? value.partnerId : null,
     lockedTableId:
       typeof value.lockedTableId === 'string' ? value.lockedTableId : null,
@@ -163,6 +186,7 @@ export function createEmptyPlannerData(): PlannerData {
       },
     ],
     guests: [],
+    circles: [],
     affinities: [],
     seating: {
       [tableId]: Array(8).fill(null),
@@ -198,6 +222,16 @@ export function hydratePlannerData(value: unknown): PlannerData {
     ? value.guests.map(normalizeGuest).filter(isPresent)
     : fallback.guests
 
+  const importedCircles = Array.isArray(value.circles)
+    ? value.circles.map((circle) => asString(circle)).filter(Boolean)
+    : []
+  const circles = Array.from(
+    new Set([
+      ...importedCircles,
+      ...guests.flatMap((guest) => guest.circles),
+    ]),
+  ).sort((first, second) => first.localeCompare(second))
+
   const validGuestIds = new Set(guests.map((guest) => guest.id))
   const affinities = Array.isArray(value.affinities)
     ? value.affinities
@@ -228,6 +262,7 @@ export function hydratePlannerData(value: unknown): PlannerData {
     rooms,
     tables,
     guests: normalizedGuests,
+    circles,
     affinities,
     seating,
   }
@@ -337,15 +372,69 @@ function getGuestAgeBand(age: number | null) {
   return 'senior'
 }
 
+function getAgeGap(first: Guest, second: Guest) {
+  return first.age === null || second.age === null
+    ? null
+    : Math.abs(first.age - second.age)
+}
+
+function countSharedCircles(first: Guest, second: Guest) {
+  return first.circles.filter((circle) => second.circles.includes(circle)).length
+}
+
+function countSharedTags(first: Guest, second: Guest) {
+  return first.tags.filter((tag) => second.tags.includes(tag)).length
+}
+
+function hasBridgeAnchor(
+  first: Guest,
+  second: Guest,
+  affinityMap: Map<string, number>,
+) {
+  const explicit = getExplicitAffinity(affinityMap, first.id, second.id)
+  const ageGap = getAgeGap(first, second)
+
+  return (
+    explicit > 0 ||
+    countSharedCircles(first, second) > 0 ||
+    countSharedTags(first, second) > 0 ||
+    (ageGap !== null && ageGap <= 12)
+  )
+}
+
+function getCircleCounts(guests: Guest[]) {
+  const counts = new Map<string, number>()
+
+  for (const guest of guests) {
+    for (const circle of guest.circles) {
+      counts.set(circle, (counts.get(circle) ?? 0) + 1)
+    }
+  }
+
+  return counts
+}
+
+function getDominantCircle(guests: Guest[]) {
+  let dominantCircle: { name: string; count: number } | null = null
+
+  for (const [name, count] of getCircleCounts(guests)) {
+    if (!dominantCircle || count > dominantCircle.count) {
+      dominantCircle = { name, count }
+    }
+  }
+
+  return dominantCircle
+}
+
 function getPairScore(
   first: Guest,
   second: Guest,
   affinityMap: Map<string, number>,
 ) {
   const explicit = getExplicitAffinity(affinityMap, first.id, second.id)
-  const sharedTags = first.tags.filter((tag) => second.tags.includes(tag)).length
-  const sameCircle =
-    first.circle.trim() && first.circle.trim() === second.circle.trim()
+  const sharedTags = countSharedTags(first, second)
+  const sharedCircles = countSharedCircles(first, second)
+  const ageGap = getAgeGap(first, second)
   const firstAgeBand = getGuestAgeBand(first.age)
   const secondAgeBand = getGuestAgeBand(second.age)
 
@@ -355,12 +444,22 @@ function getPairScore(
     score += 24
   }
 
-  if (sameCircle) {
-    score += 6
+  if (sharedCircles > 0) {
+    score += Math.min(sharedCircles, 3) * 6
   }
 
   if (sharedTags > 0) {
     score += Math.min(sharedTags, 3) * 2
+  }
+
+  if (ageGap !== null) {
+    if (ageGap <= 8) {
+      score += 3
+    } else if (ageGap <= 15) {
+      score += 1
+    } else if (ageGap >= 35) {
+      score -= 2
+    }
   }
 
   if (
@@ -408,7 +507,12 @@ function scoreSeatChoice(
 ) {
   const guestMap = new Map(planner.guests.map((currentGuest) => [currentGuest.id, currentGuest]))
   const tableSeats = planner.seating[table.id] ?? []
-  const socialWeight = strategy === 'social' ? 1.4 : strategy === 'strict' ? 1.12 : 1
+  const socialWeight =
+    strategy === 'social'
+      ? 1.4
+      : strategy === 'bridge' || strategy === 'strict'
+        ? 1.12
+        : 1
   const hardAvoidScore = strategy === 'strict' ? -60 : HARD_AVOID_SCORE
   const occupants = tableSeats
     .map((guestId) => (guestId ? guestMap.get(guestId) ?? null : null))
@@ -423,6 +527,35 @@ function scoreSeatChoice(
     if (pairScore <= hardAvoidScore) {
       hardConflict = true
       score -= 500
+    }
+  }
+
+  if (strategy === 'bridge' && occupants.length > 0) {
+    const anchorCount = occupants.filter((occupant) =>
+      hasBridgeAnchor(guest, occupant, affinityMap),
+    ).length
+    const sameCircleCount = occupants.filter(
+      (occupant) => countSharedCircles(guest, occupant) > 0,
+    ).length
+    const dominantCircle = getDominantCircle(occupants)
+
+    if (anchorCount === 0) {
+      score -= 28
+    } else {
+      score += Math.min(anchorCount, 2) * 10
+    }
+
+    if (sameCircleCount >= Math.ceil(table.seatCount * 0.45)) {
+      score -= (sameCircleCount - 1) * 8
+    }
+
+    if (
+      dominantCircle &&
+      dominantCircle.count >= Math.max(3, Math.ceil(table.seatCount * 0.45)) &&
+      !guest.circles.includes(dominantCircle.name) &&
+      anchorCount > 0
+    ) {
+      score += 12
     }
   }
 
@@ -556,6 +689,57 @@ function shuffle<T>(values: T[]) {
   return nextValues
 }
 
+function getStrategyPlanScore(
+  planner: PlannerData,
+  strategy: AutoAssignStrategy,
+  affinityMap: Map<string, number>,
+) {
+  const baseScore = evaluatePlan(planner).score
+
+  if (strategy !== 'bridge') {
+    return baseScore
+  }
+
+  const guestMap = new Map(planner.guests.map((guest) => [guest.id, guest]))
+  let bridgeScore = 0
+
+  for (const seats of Object.values(planner.seating)) {
+    const guests = seats
+      .map((guestId) => (guestId ? guestMap.get(guestId) ?? null : null))
+      .filter(isPresent)
+
+    if (guests.length <= 1) {
+      continue
+    }
+
+    for (const guest of guests) {
+      const anchorCount = guests.filter(
+        (otherGuest) =>
+          otherGuest.id !== guest.id &&
+          hasBridgeAnchor(guest, otherGuest, affinityMap),
+      ).length
+
+      bridgeScore += anchorCount === 0 ? -20 : Math.min(anchorCount, 2) * 4
+    }
+
+    if (guests.length < 4) {
+      continue
+    }
+
+    for (const count of getCircleCounts(guests).values()) {
+      if (count === 1) {
+        bridgeScore -= 4
+      } else if (count <= 4) {
+        bridgeScore += count * 3
+      } else {
+        bridgeScore += 12 - (count - 4) * 5
+      }
+    }
+  }
+
+  return baseScore + bridgeScore
+}
+
 function clearSeating(planner: PlannerData) {
   return Object.fromEntries(
     planner.tables.map((table) => [table.id, Array(table.seatCount).fill(null)]),
@@ -586,10 +770,11 @@ export function autoAssignGuests(
       : orderedGuests.filter((guest) => !getGuestSeat(planner.seating, guest.id))
 
   let bestPlanner = basePlanner
-  let bestScore = evaluatePlan(basePlanner).score
+  let bestScore = getStrategyPlanScore(basePlanner, strategy, affinityMap)
 
-  const attempts = strategy === 'strict' ? 180 : 120
-  const randomNoise = strategy === 'strict' ? 0.4 : strategy === 'social' ? 4 : 2.5
+  const attempts = strategy === 'strict' ? 180 : strategy === 'bridge' ? 150 : 120
+  const randomNoise =
+    strategy === 'strict' ? 0.4 : strategy === 'social' || strategy === 'bridge' ? 4 : 2.5
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const workingPlanner: PlannerData = {
@@ -636,9 +821,9 @@ export function autoAssignGuests(
       workingPlanner.seating[chosenOption.table.id][chosenOption.seatIndex] = guest.id
     }
 
-    const evaluation = evaluatePlan(workingPlanner)
-    if (evaluation.score > bestScore) {
-      bestScore = evaluation.score
+    const strategyScore = getStrategyPlanScore(workingPlanner, strategy, affinityMap)
+    if (strategyScore > bestScore) {
+      bestScore = strategyScore
       bestPlanner = workingPlanner
     }
   }

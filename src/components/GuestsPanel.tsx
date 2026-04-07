@@ -11,18 +11,69 @@ type GuestsPanelProps = {
   guestSeatLookup: Map<string, GuestSeatInfo>
   guestDraft: GuestDraft
   guestSearch: string
-  onGuestDraftChange: (field: keyof GuestDraft, value: string) => void
+  onGuestDraftChange: (
+    field: 'name' | 'age' | 'tags' | 'notes',
+    value: string,
+  ) => void
+  onGuestDraftCirclesChange: (circles: string[]) => void
   onAddGuest: () => void
   onGuestSearchChange: (value: string) => void
   onGuestFieldChange: (
     guestId: string,
-    field: 'name' | 'age' | 'circle' | 'tags' | 'notes',
+    field: 'name' | 'age' | 'tags' | 'notes',
     value: string,
   ) => void
+  onGuestCirclesChange: (guestId: string, circles: string[]) => void
   onPartnerChange: (guestId: string, value: string) => void
   onGuestTableLockChange: (guestId: string, tableId: string) => void
   onRemoveGuest: (guestId: string) => void
   onImportGuests: (rawGuestList: string) => void
+  onAddCircle: (circleName: string) => void
+  onRemoveCircle: (circleName: string) => void
+}
+
+function updateCircleSlot(circles: string[], index: number, value: string) {
+  const nextCircles = [...circles]
+  nextCircles[index] = value
+
+  return Array.from(new Set(nextCircles.filter(Boolean))).slice(0, 3)
+}
+
+function CircleSelectors({
+  planner,
+  circles,
+  onChange,
+}: {
+  planner: PlannerData
+  circles: string[]
+  onChange: (circles: string[]) => void
+}) {
+  return (
+    <div className="circle-selectors">
+      {[0, 1, 2].map((index) => (
+        <label className="field" key={index}>
+          <span>Circle {index + 1}</span>
+          <select
+            value={circles[index] ?? ''}
+            onChange={(event) =>
+              onChange(updateCircleSlot(circles, index, event.target.value))
+            }
+          >
+            <option value="">No circle</option>
+            {planner.circles.map((circle) => (
+              <option
+                disabled={circles.includes(circle) && circles[index] !== circle}
+                key={circle}
+                value={circle}
+              >
+                {circle}
+              </option>
+            ))}
+          </select>
+        </label>
+      ))}
+    </div>
+  )
 }
 
 function GuestsPanel({
@@ -32,15 +83,20 @@ function GuestsPanel({
   guestDraft,
   guestSearch,
   onGuestDraftChange,
+  onGuestDraftCirclesChange,
   onAddGuest,
   onGuestSearchChange,
   onGuestFieldChange,
+  onGuestCirclesChange,
   onPartnerChange,
   onGuestTableLockChange,
   onRemoveGuest,
   onImportGuests,
+  onAddCircle,
+  onRemoveCircle,
 }: GuestsPanelProps) {
   const [importText, setImportText] = useState('')
+  const [circleDraft, setCircleDraft] = useState('')
   const importFileRef = useRef<HTMLInputElement | null>(null)
 
   function handlePastedImport() {
@@ -57,6 +113,11 @@ function GuestsPanel({
     const content = await file.text()
     onImportGuests(content)
     event.target.value = ''
+  }
+
+  function handleAddCircle() {
+    onAddCircle(circleDraft)
+    setCircleDraft('')
   }
 
   return (
@@ -80,6 +141,45 @@ function GuestsPanel({
         </p>
       </div>
 
+      <div className="editor-card circle-manager-card">
+        <div className="import-card-copy">
+          <div>
+            <span className="section-kicker">Circles</span>
+            <h3>Manage reusable guest circles.</h3>
+          </div>
+          <p>
+            Create circles once, then pick up to three per guest. Shared circles
+            are used by smart seating.
+          </p>
+        </div>
+        <div className="form-grid circle-add-grid">
+          <label className="field wide">
+            <span>New circle</span>
+            <input
+              value={circleDraft}
+              onChange={(event) => setCircleDraft(event.target.value)}
+              placeholder="Bride side, work friends, kids..."
+            />
+          </label>
+          <button onClick={handleAddCircle}>Add circle</button>
+        </div>
+        <div className="circle-chip-row">
+          {planner.circles.length === 0 ? (
+            <span className="guest-chip quiet">No circles yet</span>
+          ) : (
+            planner.circles.map((circle) => (
+              <button
+                className="circle-chip"
+                key={circle}
+                onClick={() => onRemoveCircle(circle)}
+              >
+                {circle} x
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+
       <div className="editor-card">
         <div className="form-grid guest-add-grid">
           <label className="field">
@@ -101,14 +201,14 @@ function GuestsPanel({
               placeholder="31"
             />
           </label>
-          <label className="field">
-            <span>Circle</span>
-            <input
-              value={guestDraft.circle}
-              onChange={(event) => onGuestDraftChange('circle', event.target.value)}
-              placeholder="Bride side"
+          <div className="field wide">
+            <span>Circles</span>
+            <CircleSelectors
+              planner={planner}
+              circles={guestDraft.circles}
+              onChange={onGuestDraftCirclesChange}
             />
-          </label>
+          </div>
           <label className="field wide">
             <span>Tags</span>
             <input
@@ -137,7 +237,7 @@ function GuestsPanel({
           </div>
           <p>
             Works with one name per line, or columns like
-            <code>id, name, age, circle, tags, notes, partner, table</code>. If
+            <code>id, name, age, circles, tags, notes, partner, table</code>. If
             <code>id</code> is present, <code>partner</code> is treated as a
             partner ID and duplicate names are allowed.
           </p>
@@ -147,7 +247,7 @@ function GuestsPanel({
           <textarea
             value={importText}
             onChange={(event) => setImportText(event.target.value)}
-            placeholder={'id,name,age,circle,tags,notes,partner,table\n1,Alice Dupont,37,Bride side,family,,2,\n2,Alice Dupont,39,Bride side,family,,1,'}
+            placeholder={'id,name,age,circles,tags,notes,partner,table\n1,Alice Dupont,37,Bride side|College friends,family,,2,\n2,Alice Dupont,39,Bride side,family,,1,'}
           />
         </label>
         <div className="button-row import-actions">
@@ -164,7 +264,7 @@ function GuestsPanel({
           <input
             value={guestSearch}
             onChange={(event) => onGuestSearchChange(event.target.value)}
-            placeholder="Find by name, circle, notes, or tags"
+            placeholder="Find by name, circles, notes, or tags"
           />
         </label>
       </div>
@@ -214,15 +314,14 @@ function GuestsPanel({
                       }
                     />
                   </label>
-                  <label className="field">
-                    <span>Circle</span>
-                    <input
-                      value={guest.circle}
-                      onChange={(event) =>
-                        onGuestFieldChange(guest.id, 'circle', event.target.value)
-                      }
+                  <div className="field wide">
+                    <span>Circles</span>
+                    <CircleSelectors
+                      planner={planner}
+                      circles={guest.circles}
+                      onChange={(circles) => onGuestCirclesChange(guest.id, circles)}
                     />
-                  </label>
+                  </div>
                   <label className="field">
                     <span>Partner</span>
                     <select

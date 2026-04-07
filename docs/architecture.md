@@ -21,7 +21,7 @@ Each guest stores:
 - `name`
 - `importId`
 - `age`
-- `circle`
+- `circles`
 - `partnerId`
 - `lockedTableId`
 - `tags`
@@ -103,10 +103,11 @@ The engine:
 5. tries multiple randomized greedy placement passes
 6. keeps the highest scoring result
 
-The UI exposes three assignment strategies:
+The UI exposes four assignment strategies:
 
 - `balanced`: default weighting
 - `social`: heavier social matching for circles, tags, and affinities
+- `bridge`: tries to split large circles into smaller compatible pods so guests are not isolated with total strangers
 - `strict`: lower tolerance for hard avoid scores and more weight for fixed rules
 
 ### Signals used in scoring
@@ -114,10 +115,11 @@ The UI exposes three assignment strategies:
 - explicit affinity score
 - fixed-table lock
 - partner bonus
-- same circle bonus
+- shared circle bonus
 - shared tag bonus
-- age-band nudges
+- age-band and age-gap nudges
 - adjacency bonus
+- bridge-mode table-shape scoring
 - hard penalties for severe negative matches
 - hard penalties for separated `+100` relationships
 - penalties for separated partners

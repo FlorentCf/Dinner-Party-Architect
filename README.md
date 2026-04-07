@@ -7,12 +7,12 @@ It is designed to stay easy to use for a real couple planning a wedding, while s
 - multiple rooms
 - different table sizes and shapes
 - manual seat assignment
-- guest age, social circle, tags, and notes
+- guest age, reusable social circles, tags, and notes
 - couples and partner links
 - pairwise affinity scores from `+100` to `-100`
 - fixed-table guest locks for people who must stay at a specific table
 - CSV/TXT or pasted guest list import
-- automatic seating suggestions that try to keep good matches together and avoid painful ones
+- automatic seating suggestions that try to keep good matches together, bridge compatible groups, and avoid painful ones
 - a visual seating tab with drag-and-drop moves and swaps
 - JSON import/export for backups
 
@@ -95,7 +95,7 @@ For each guest, you can store:
 
 - name
 - age
-- circle
+- up to three circles
 - tags
 - notes
 - partner
@@ -103,7 +103,7 @@ For each guest, you can store:
 
 Suggested uses:
 
-- `circle`: bride side, groom side, family, work, college friends, kids
+- `circles`: bride side, groom side, family, work, college friends, kids
 - `tags`: calm, dancefloor, family, travel, kids, vegan, shy
 - `notes`: wants a quiet table, okay near speakers, should not be with ex, can help lead conversation
 
@@ -112,8 +112,8 @@ You can also bulk import guests by pasting a list or importing a CSV/TXT file.
 Supported examples:
 
 ```csv
-id,name,age,circle,tags,notes,partner,table
-1,Alice Dupont,37,Bride side,"family, calm","Near parents",2,Family table
+id,name,age,circles,tags,notes,partner,table
+1,Alice Dupont,37,Bride side|College friends,"family, calm","Near parents",2,Family table
 2,Alice Dupont,39,Bride side,family,,1,Family table
 ```
 
@@ -162,6 +162,7 @@ There are also multiple smart-assign styles:
 
 - `Balanced`: general-purpose default
 - `Keep social groups together`: gives more weight to circles, tags, and affinities
+- `Bridge groups without isolating guests`: splits large circles into smaller pods while trying to make sure each guest still has at least one familiar or compatible anchor
 - `Strict rules first`: treats strong negative and hard together rules more aggressively
 
 ### 5. Use the visual plan
@@ -174,7 +175,7 @@ In the visual plan:
 - drag a seated guest onto another empty seat to move them
 - drag a seated guest onto an occupied seat to swap them
 - drop a seated guest into the unseat drop zone to remove them from the table
-- click a guest name to open a small detail card with ID, partner, age, circle, notes, fixed table, and current seat
+- click a guest name to open a small detail card with ID, partner, age, circles, notes, fixed table, and current seat
 
 This view is meant for the "does this feel right?" phase after the guest and relationship data is mostly entered.
 
@@ -197,8 +198,9 @@ It combines:
 - partner relationships
 - shared circles
 - shared tags
-- a few age-based nudges
+- age and generation nudges
 - extra weight for adjacent seats
+- bridge-mode table-shape scoring that prefers small pods over isolated strangers
 - heavy penalties for hard conflicts
 - penalties for leaving people unseated
 
