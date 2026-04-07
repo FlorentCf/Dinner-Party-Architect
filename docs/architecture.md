@@ -166,6 +166,8 @@ The app has two primary views:
 - `Editor`: structured forms for rooms, guests, tables, and relationships
 - `Visual plan`: spatial table cards where guests can be moved, swapped, or unseated with drag and drop
 
+Guest names are rendered through `GuestInfoPopover`, which makes duplicate names easier to inspect by showing import ID, partner, fixed table, seat, tags, and notes on click.
+
 The current layout favors form clarity over dense spreadsheets because wedding planning is usually done by non-technical users.
 
 ## Good next technical steps

@@ -153,6 +153,17 @@ function addImportedGuests(planner: PlannerData, drafts: ImportedGuestDraft[]) {
     }
   }
 
+  for (const guest of linkedGuests) {
+    if (!guest.partnerId || !guest.lockedTableId) {
+      continue
+    }
+
+    const partnerIndex = guestIndexById.get(guest.partnerId)
+    if (partnerIndex !== undefined) {
+      linkedGuests[partnerIndex].lockedTableId = guest.lockedTableId
+    }
+  }
+
   return {
     planner: {
       ...planner,
@@ -160,6 +171,55 @@ function addImportedGuests(planner: PlannerData, drafts: ImportedGuestDraft[]) {
     },
     duplicateCount,
     importedCount,
+  }
+}
+
+function findGuestSeat(seating: PlannerData['seating'], guestId: string) {
+  for (const [tableId, seats] of Object.entries(seating)) {
+    const seatIndex = seats.findIndex((seatGuestId) => seatGuestId === guestId)
+    if (seatIndex >= 0) {
+      return {
+        tableId,
+        seatIndex,
+      }
+    }
+  }
+
+  return null
+}
+
+function keepPartnerAtSameTable(planner: PlannerData, guestId: string, tableId: string) {
+  const guest = planner.guests.find((currentGuest) => currentGuest.id === guestId)
+  const partner = guest?.partnerId
+    ? planner.guests.find((currentGuest) => currentGuest.id === guest.partnerId)
+    : null
+
+  if (!guest || !partner) {
+    return planner
+  }
+
+  const partnerSeat = findGuestSeat(planner.seating, partner.id)
+  if (partnerSeat?.tableId === tableId) {
+    return planner
+  }
+
+  const tableSeats = planner.seating[tableId]
+  const emptySeatIndex = tableSeats?.findIndex((seatGuestId) => seatGuestId === null) ?? -1
+  if (!tableSeats || emptySeatIndex < 0) {
+    return planner
+  }
+
+  const seating = cloneSeating(planner.seating)
+
+  if (partnerSeat) {
+    seating[partnerSeat.tableId][partnerSeat.seatIndex] = null
+  }
+
+  seating[tableId][emptySeatIndex] = partner.id
+
+  return {
+    ...planner,
+    seating,
   }
 }
 
@@ -331,17 +391,22 @@ function PlannerApp() {
   }
 
   function handleGuestTableLockChange(guestId: string, tableId: string) {
-    setPlanner((current) => ({
-      ...current,
-      guests: current.guests.map((guest) =>
-        guest.id === guestId
-          ? {
-              ...guest,
-              lockedTableId: tableId || null,
-            }
-          : guest,
-      ),
-    }))
+    setPlanner((current) => {
+      const selectedGuest = current.guests.find((guest) => guest.id === guestId)
+      const partnerId = selectedGuest?.partnerId
+
+      return {
+        ...current,
+        guests: current.guests.map((guest) =>
+          guest.id === guestId || guest.id === partnerId || guest.partnerId === guestId
+            ? {
+                ...guest,
+                lockedTableId: tableId || null,
+              }
+            : guest,
+        ),
+      }
+    })
   }
 
   function handleRemoveGuest(guestId: string) {
@@ -576,7 +641,10 @@ function PlannerApp() {
     event: ChangeEvent<HTMLSelectElement>,
   ) {
     const guestId = event.target.value || null
-    setPlanner((current) => seatGuest(current, tableId, seatIndex, guestId))
+    setPlanner((current) => {
+      const nextPlanner = seatGuest(current, tableId, seatIndex, guestId)
+      return guestId ? keepPartnerAtSameTable(nextPlanner, guestId, tableId) : nextPlanner
+    })
   }
 
   function handleMoveGuest(guestId: string, tableId: string, seatIndex: number) {
@@ -621,10 +689,12 @@ function PlannerApp() {
 
       seating[tableId][seatIndex] = guestId
 
-      return {
+      const movedPlanner = {
         ...current,
         seating,
       }
+
+      return keepPartnerAtSameTable(movedPlanner, guestId, tableId)
     })
 
     setStatusMessage(`${guest?.name ?? 'Guest'} moved.`)

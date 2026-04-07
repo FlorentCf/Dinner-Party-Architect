@@ -1,3 +1,4 @@
+import { formatGuestLabel } from '../guestDisplay'
 import type { Guest, PlannerData } from '../types'
 import type { AffinityDraft } from '../viewModels'
 
@@ -14,10 +15,6 @@ type RelationshipsPanelProps = {
     value: string,
   ) => void
   onRemoveAffinity: (affinityId: string) => void
-}
-
-function formatGuestLabel(guest: Guest) {
-  return guest.importId ? `${guest.name} (ID ${guest.importId})` : guest.name
 }
 
 function RelationshipsPanel({

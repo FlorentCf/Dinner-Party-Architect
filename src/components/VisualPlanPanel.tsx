@@ -1,4 +1,6 @@
 import type { DragEvent } from 'react'
+import GuestInfoPopover from './GuestInfoPopover'
+import { formatGuestLabel } from '../guestDisplay'
 import type { Guest, PlannerData, Table } from '../types'
 
 type VisualPlanPanelProps = {
@@ -7,10 +9,6 @@ type VisualPlanPanelProps = {
   unseatedGuests: Guest[]
   onMoveGuest: (guestId: string, tableId: string, seatIndex: number) => void
   onUnseatGuest: (guestId: string) => void
-}
-
-function formatGuestLabel(guest: Guest) {
-  return guest.importId ? `${guest.name} (ID ${guest.importId})` : guest.name
 }
 
 function getSeatPosition(table: Table, seatIndex: number, seatCount: number) {
@@ -118,11 +116,13 @@ function VisualPlanPanel({
                             const position = getSeatPosition(table, seatIndex, seats.length)
 
                             return (
-                              <button
+                              <div
                                 className={`visual-seat${guest ? ' occupied' : ''}`}
                                 draggable={Boolean(guest)}
                                 key={`${table.id}-${seatIndex}`}
+                                role="button"
                                 style={position}
+                                tabIndex={0}
                                 title={
                                   guest
                                     ? `${formatGuestLabel(guest)} at ${table.name}, seat ${
@@ -139,8 +139,12 @@ function VisualPlanPanel({
                                 onDrop={(event) => handleSeatDrop(event, table.id, seatIndex)}
                               >
                                 <span>Seat {seatIndex + 1}</span>
-                                <strong>{guest ? formatGuestLabel(guest) : 'Empty'}</strong>
-                              </button>
+                                {guest ? (
+                                  <GuestInfoPopover guest={guest} planner={planner} />
+                                ) : (
+                                  <strong>Empty</strong>
+                                )}
+                              </div>
                             )
                           })}
                         </div>
@@ -165,14 +169,16 @@ function VisualPlanPanel({
             <span className="guest-chip quiet">Everyone is seated</span>
           ) : (
             unseatedGuests.map((guest) => (
-              <button
+              <div
                 className="guest-drag-chip"
                 draggable
                 key={guest.id}
+                role="button"
+                tabIndex={0}
                 onDragStart={(event) => handleDragStart(event, guest.id)}
               >
-                {formatGuestLabel(guest)}
-              </button>
+                <GuestInfoPopover guest={guest} planner={planner} />
+              </div>
             ))
           )}
         </div>

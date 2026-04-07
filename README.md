@@ -64,6 +64,17 @@ npm run build
 npm run preview
 ```
 
+## Sharing the app
+
+If the other person is comfortable with developer tools, they can clone the GitHub repository and run:
+
+```bash
+npm install
+npm run dev
+```
+
+If you want a normal link that anyone can open, the best next step is to deploy the Vite build to a static host such as GitHub Pages, Netlify, or Vercel. The app has no backend, so it is a good fit for that. Keep in mind that each person's plan is saved in their own browser, so use `Export JSON` / `Import JSON` when you want to share the actual seating data.
+
 ## How to use the planner
 
 ### 1. Create your space
@@ -145,6 +156,8 @@ The planner supports two modes:
 
 You can always override any seat manually afterward. If somebody must stay at a table, set their `Fixed table` field in the guest editor before rebuilding.
 
+For couples, setting a fixed table on one partner automatically mirrors the same fixed table onto the other partner. When you manually move a seated guest, the app also tries to place their partner at the same table if there is an empty seat.
+
 There are also multiple smart-assign styles:
 
 - `Balanced`: general-purpose default
@@ -161,6 +174,7 @@ In the visual plan:
 - drag a seated guest onto another empty seat to move them
 - drag a seated guest onto an occupied seat to swap them
 - drop a seated guest into the unseat drop zone to remove them from the table
+- click a guest name to open a small detail card with ID, partner, age, circle, notes, fixed table, and current seat
 
 This view is meant for the "does this feel right?" phase after the guest and relationship data is mostly entered.
 

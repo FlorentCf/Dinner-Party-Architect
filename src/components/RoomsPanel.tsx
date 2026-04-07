@@ -1,4 +1,6 @@
 import type { ChangeEvent } from 'react'
+import GuestInfoPopover from './GuestInfoPopover'
+import { formatGuestLabel } from '../guestDisplay'
 import type { Guest, PlannerData, Room, Table, TableShape } from '../types'
 import type { GuestSeatInfo, RoomDraft, TableDraft } from '../viewModels'
 
@@ -22,10 +24,6 @@ type RoomsPanelProps = {
     seatIndex: number,
     event: ChangeEvent<HTMLSelectElement>,
   ) => void
-}
-
-function formatGuestLabel(guest: Guest) {
-  return guest.importId ? `${guest.name} (ID ${guest.importId})` : guest.name
 }
 
 function RoomsPanel({
@@ -262,7 +260,11 @@ function RoomsPanel({
                                 key={`${table.id}-${seatIndex}`}
                               >
                                 <span className="seat-label">Seat {seatIndex + 1}</span>
-                                <strong>{guest ? formatGuestLabel(guest) : 'Empty seat'}</strong>
+                                {guest ? (
+                                  <GuestInfoPopover guest={guest} planner={planner} />
+                                ) : (
+                                  <strong>Empty seat</strong>
+                                )}
                                 <select
                                   value={guestId ?? ''}
                                   onChange={(event) => onSeatChange(table.id, seatIndex, event)}

@@ -1,4 +1,6 @@
 import { useRef, useState, type ChangeEvent } from 'react'
+import GuestInfoPopover from './GuestInfoPopover'
+import { formatGuestLabel } from '../guestDisplay'
 import { formatTagString } from '../planUtils'
 import type { Guest, PlannerData } from '../types'
 import type { GuestDraft, GuestSeatInfo } from '../viewModels'
@@ -21,10 +23,6 @@ type GuestsPanelProps = {
   onGuestTableLockChange: (guestId: string, tableId: string) => void
   onRemoveGuest: (guestId: string) => void
   onImportGuests: (rawGuestList: string) => void
-}
-
-function formatGuestLabel(guest: Guest) {
-  return guest.importId ? `${guest.name} (ID ${guest.importId})` : guest.name
 }
 
 function GuestsPanel({
@@ -182,7 +180,7 @@ function GuestsPanel({
               <article className="guest-card" key={guest.id}>
                 <div className="guest-card-top">
                   <div className="guest-status">
-                    <strong>{formatGuestLabel(guest)}</strong>
+                    <GuestInfoPopover guest={guest} planner={planner} />
                     <span className={`seat-badge ${seat ? 'filled' : 'empty'}`}>
                       {seat
                         ? `${seat.roomName} / ${seat.tableName} / Seat ${seat.seatIndex + 1}`

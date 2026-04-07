@@ -470,6 +470,91 @@ button.danger {
   color: #52613f;
 }
 
+.guest-info {
+  position: relative;
+  display: inline-grid;
+  max-width: 100%;
+}
+
+.guest-info summary {
+  display: inline-flex;
+  max-width: 100%;
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 800;
+  list-style: none;
+  text-decoration: underline;
+  text-decoration-color: rgba(184, 96, 62, 0.32);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.guest-info summary::-webkit-details-marker {
+  display: none;
+}
+
+.guest-info-card {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 10px);
+  left: 0;
+  width: min(320px, 78vw);
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(53, 67, 45, 0.16);
+  background: #fffdf8;
+  box-shadow: 0 22px 48px rgba(78, 59, 40, 0.24);
+  text-align: left;
+}
+
+.guest-info-card dl,
+.guest-info-card dd {
+  margin: 0;
+}
+
+.guest-info-card dl {
+  display: grid;
+  gap: 10px;
+}
+
+.guest-info-card div {
+  display: grid;
+  gap: 3px;
+}
+
+.guest-info-card dt {
+  color: var(--text-soft);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.guest-info-card dd {
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.visual-seat .guest-info,
+.guest-drag-chip .guest-info {
+  min-width: 0;
+}
+
+.visual-seat .guest-info summary,
+.guest-drag-chip .guest-info summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.visual-seat .guest-info-card {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 .import-card {
   display: grid;
   gap: 14px;
