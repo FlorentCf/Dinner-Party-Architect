@@ -10,6 +10,7 @@ import StatCard from './components/StatCard'
 import GuestsPanel from './components/GuestsPanel'
 import RelationshipsPanel from './components/RelationshipsPanel'
 import RoomsPanel from './components/RoomsPanel'
+import VisualPlanPanel from './components/VisualPlanPanel'
 import {
   autoAssignGuests,
   cloneSeating,
@@ -44,8 +45,11 @@ import {
   type TableDraft,
 } from './viewModels'
 
+type ActiveView = 'editor' | 'visual'
+
 function PlannerApp() {
   const [planner, setPlanner] = useState(loadInitialPlannerData)
+  const [activeView, setActiveView] = useState<ActiveView>('editor')
   const [guestDraft, setGuestDraft] = useState<GuestDraft>(emptyGuestDraft)
   const [roomDraft, setRoomDraft] = useState<RoomDraft>(emptyRoomDraft)
   const [tableDraft, setTableDraft] = useState<TableDraft>({
@@ -412,6 +416,72 @@ function PlannerApp() {
     setPlanner((current) => seatGuest(current, tableId, seatIndex, guestId))
   }
 
+  function handleMoveGuest(guestId: string, tableId: string, seatIndex: number) {
+    const guest = guestsById.get(guestId)
+
+    setPlanner((current) => {
+      const seating = cloneSeating(current.seating)
+      const targetSeats = seating[tableId]
+
+      if (!targetSeats) {
+        return current
+      }
+
+      let sourceSeat: { tableId: string; seatIndex: number } | null = null
+
+      for (const [currentTableId, seats] of Object.entries(seating)) {
+        const currentSeatIndex = seats.findIndex((seatGuestId) => seatGuestId === guestId)
+        if (currentSeatIndex >= 0) {
+          sourceSeat = {
+            tableId: currentTableId,
+            seatIndex: currentSeatIndex,
+          }
+          break
+        }
+      }
+
+      if (sourceSeat?.tableId === tableId && sourceSeat.seatIndex === seatIndex) {
+        return current
+      }
+
+      const targetGuestId = targetSeats[seatIndex] ?? null
+
+      if (sourceSeat) {
+        seating[sourceSeat.tableId][sourceSeat.seatIndex] = targetGuestId
+      } else {
+        for (const [currentTableId, seats] of Object.entries(seating)) {
+          seating[currentTableId] = seats.map((seatGuestId) =>
+            seatGuestId === guestId ? null : seatGuestId,
+          )
+        }
+      }
+
+      seating[tableId][seatIndex] = guestId
+
+      return {
+        ...current,
+        seating,
+      }
+    })
+
+    setStatusMessage(`${guest?.name ?? 'Guest'} moved.`)
+  }
+
+  function handleUnseatGuest(guestId: string) {
+    const guest = guestsById.get(guestId)
+
+    setPlanner((current) => ({
+      ...current,
+      seating: Object.fromEntries(
+        Object.entries(current.seating).map(([tableId, seats]) => [
+          tableId,
+          seats.map((seatGuestId) => (seatGuestId === guestId ? null : seatGuestId)),
+        ]),
+      ),
+    }))
+    setStatusMessage(`${guest?.name ?? 'Guest'} is now unseated.`)
+  }
+
   function handleAddAffinity() {
     if (!affinityDraft.guestAId || !affinityDraft.guestBId) {
       setStatusMessage('Pick both guests for the relationship.')
@@ -633,58 +703,87 @@ function PlannerApp() {
         />
       </section>
 
-      <main className="planner-grid">
-        <RoomsPanel
-          planner={planner}
-          guestsById={guestsById}
-          guestSeatLookup={guestSeatLookup}
-          unseatedGuests={unseatedGuests}
-          roomDraft={roomDraft}
-          tableDraft={tableDraft}
-          onRoomDraftChange={(field, value) =>
-            setRoomDraft((current) => ({ ...current, [field]: value }))
-          }
-          onAddRoom={handleAddRoom}
-          onRoomFieldChange={handleRoomFieldChange}
-          onRemoveRoom={handleRemoveRoom}
-          onTableDraftChange={(field, value) =>
-            setTableDraft((current) => ({ ...current, [field]: value }))
-          }
-          onAddTable={handleAddTable}
-          onTableFieldChange={handleTableFieldChange}
-          onRemoveTable={handleRemoveTable}
-          onSeatChange={handleSeatChange}
-        />
+      <nav className="view-tabs" aria-label="Planner views">
+        <button
+          className={activeView === 'editor' ? 'active' : ''}
+          aria-pressed={activeView === 'editor'}
+          onClick={() => setActiveView('editor')}
+        >
+          Editor
+        </button>
+        <button
+          className={activeView === 'visual' ? 'active' : ''}
+          aria-pressed={activeView === 'visual'}
+          onClick={() => setActiveView('visual')}
+        >
+          Visual plan
+        </button>
+      </nav>
 
-        <GuestsPanel
-          planner={planner}
-          filteredGuests={filteredGuests}
-          guestSeatLookup={guestSeatLookup}
-          guestDraft={guestDraft}
-          guestSearch={guestSearch}
-          onGuestDraftChange={(field, value) =>
-            setGuestDraft((current) => ({ ...current, [field]: value }))
-          }
-          onAddGuest={handleAddGuest}
-          onGuestSearchChange={setGuestSearch}
-          onGuestFieldChange={handleGuestFieldChange}
-          onPartnerChange={handlePartnerChange}
-          onRemoveGuest={handleRemoveGuest}
-        />
+      {activeView === 'editor' ? (
+        <main className="planner-grid">
+          <RoomsPanel
+            planner={planner}
+            guestsById={guestsById}
+            guestSeatLookup={guestSeatLookup}
+            unseatedGuests={unseatedGuests}
+            roomDraft={roomDraft}
+            tableDraft={tableDraft}
+            onRoomDraftChange={(field, value) =>
+              setRoomDraft((current) => ({ ...current, [field]: value }))
+            }
+            onAddRoom={handleAddRoom}
+            onRoomFieldChange={handleRoomFieldChange}
+            onRemoveRoom={handleRemoveRoom}
+            onTableDraftChange={(field, value) =>
+              setTableDraft((current) => ({ ...current, [field]: value }))
+            }
+            onAddTable={handleAddTable}
+            onTableFieldChange={handleTableFieldChange}
+            onRemoveTable={handleRemoveTable}
+            onSeatChange={handleSeatChange}
+          />
 
-        <RelationshipsPanel
-          planner={planner}
-          guestsById={guestsById}
-          affinityCards={affinityCards}
-          affinityDraft={affinityDraft}
-          onAffinityDraftChange={(field, value) =>
-            setAffinityDraft((current) => ({ ...current, [field]: value }))
-          }
-          onAddAffinity={handleAddAffinity}
-          onAffinityFieldChange={handleAffinityFieldChange}
-          onRemoveAffinity={handleRemoveAffinity}
-        />
-      </main>
+          <GuestsPanel
+            planner={planner}
+            filteredGuests={filteredGuests}
+            guestSeatLookup={guestSeatLookup}
+            guestDraft={guestDraft}
+            guestSearch={guestSearch}
+            onGuestDraftChange={(field, value) =>
+              setGuestDraft((current) => ({ ...current, [field]: value }))
+            }
+            onAddGuest={handleAddGuest}
+            onGuestSearchChange={setGuestSearch}
+            onGuestFieldChange={handleGuestFieldChange}
+            onPartnerChange={handlePartnerChange}
+            onRemoveGuest={handleRemoveGuest}
+          />
+
+          <RelationshipsPanel
+            planner={planner}
+            guestsById={guestsById}
+            affinityCards={affinityCards}
+            affinityDraft={affinityDraft}
+            onAffinityDraftChange={(field, value) =>
+              setAffinityDraft((current) => ({ ...current, [field]: value }))
+            }
+            onAddAffinity={handleAddAffinity}
+            onAffinityFieldChange={handleAffinityFieldChange}
+            onRemoveAffinity={handleRemoveAffinity}
+          />
+        </main>
+      ) : (
+        <main className="visual-grid">
+          <VisualPlanPanel
+            planner={planner}
+            guestsById={guestsById}
+            unseatedGuests={unseatedGuests}
+            onMoveGuest={handleMoveGuest}
+            onUnseatGuest={handleUnseatGuest}
+          />
+        </main>
+      )}
     </div>
   )
 }

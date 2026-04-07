@@ -133,13 +133,17 @@ The UI aims for:
 - minimal jargon
 - strong defaults with manual override
 
+The app has two primary views:
+
+- `Editor`: structured forms for rooms, guests, tables, and relationships
+- `Visual plan`: spatial table cards where guests can be moved, swapped, or unseated with drag and drop
+
 The current layout favors form clarity over dense spreadsheets because wedding planning is usually done by non-technical users.
 
 ## Good next technical steps
 
 If the project continues, these improvements would bring the biggest payoff:
 
-- add drag and drop
 - introduce seat locks before optimization
 - add CSV import/export
 - split long state handlers into dedicated hooks

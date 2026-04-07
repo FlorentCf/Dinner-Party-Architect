@@ -11,6 +11,7 @@ It is designed to stay easy to use for a real couple planning a wedding, while s
 - couples and partner links
 - pairwise affinity scores from `+100` to `-100`
 - automatic seating suggestions that try to keep good matches together and avoid painful ones
+- a visual seating tab with drag-and-drop moves and swaps
 - JSON import/export for backups
 
 ## Why this exists
@@ -119,7 +120,20 @@ The planner supports two modes:
 
 You can always override any seat manually afterward.
 
-### 5. Save your work
+### 5. Use the visual plan
+
+Switch from `Editor` to `Visual plan` when you want a more spatial view of the room.
+
+In the visual plan:
+
+- drag an unseated guest chip onto a seat
+- drag a seated guest onto another empty seat to move them
+- drag a seated guest onto an occupied seat to swap them
+- drop a seated guest into the unseat drop zone to remove them from the table
+
+This view is meant for the "does this feel right?" phase after the guest and relationship data is mostly entered.
+
+### 6. Save your work
 
 The app saves automatically in the browser. You can also:
 
@@ -183,7 +197,6 @@ Automatic suggestions are useful, but wedding seating often needs human nuance. 
 
 Good next steps if you keep building this:
 
-- drag and drop seating
 - guest groups larger than couples
 - import from CSV
 - printable floor plan views

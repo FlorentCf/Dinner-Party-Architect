@@ -257,6 +257,33 @@ button.danger {
   gap: 20px;
 }
 
+.visual-grid {
+  display: grid;
+}
+
+.view-tabs {
+  display: inline-flex;
+  justify-self: start;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 10px 24px rgba(78, 59, 40, 0.08);
+}
+
+.view-tabs button {
+  min-height: 38px;
+  padding-inline: 18px;
+  box-shadow: none;
+}
+
+.view-tabs button.active {
+  background: var(--surface-contrast);
+  color: #fff8ee;
+  border-color: transparent;
+}
+
 .section-heading {
   display: grid;
   gap: 10px;
@@ -289,6 +316,18 @@ button.danger {
 .form-grid {
   display: grid;
   gap: 12px;
+}
+
+.form-grid > .field {
+  grid-column: span 3;
+}
+
+.form-grid > .field.wide {
+  grid-column: span 6;
+}
+
+.form-grid > button {
+  grid-column: span 3;
 }
 
 .room-grid,
@@ -333,7 +372,7 @@ button.danger {
 }
 
 .field.wide {
-  grid-column: span 4;
+  grid-column: span 6;
 }
 
 .room-grid .field:first-child,
@@ -509,6 +548,234 @@ button.danger {
   margin: 18px 0;
 }
 
+.visual-panel {
+  display: grid;
+  gap: 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.visual-heading {
+  grid-template-columns: minmax(0, 0.9fr) minmax(280px, 0.7fr);
+  align-items: end;
+  margin-bottom: 0;
+}
+
+.unseat-dropzone {
+  display: grid;
+  gap: 4px;
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  border: 1px dashed rgba(170, 79, 68, 0.36);
+  background: linear-gradient(135deg, rgba(170, 79, 68, 0.12), rgba(255, 255, 255, 0.7));
+}
+
+.unseat-dropzone span,
+.visual-room-header p,
+.visual-table-note {
+  color: var(--text-soft);
+  font-size: 0.9rem;
+}
+
+.visual-layout {
+  display: grid;
+  gap: 22px;
+}
+
+.visual-room {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.76), rgba(255, 247, 236, 0.68)),
+    radial-gradient(circle at top right, rgba(122, 139, 92, 0.12), transparent 34%);
+}
+
+.visual-room-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: start;
+}
+
+.visual-room-header div {
+  display: grid;
+  gap: 4px;
+}
+
+.visual-room-header span {
+  color: var(--accent-strong);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.visual-room-header strong {
+  font-family: var(--serif);
+  font-size: 1.7rem;
+}
+
+.visual-tables {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(390px, 1fr));
+  gap: 18px;
+}
+
+.visual-table {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(53, 67, 45, 0.12);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.visual-table-map {
+  min-height: 360px;
+  position: relative;
+  border-radius: 32px;
+  background:
+    linear-gradient(135deg, rgba(23, 49, 38, 0.05), rgba(184, 96, 62, 0.06)),
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.3));
+}
+
+.visual-table-core {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 38%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  text-align: center;
+  padding: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #173126, #2c4a3e);
+  color: #fff8ee;
+  box-shadow: 0 18px 36px rgba(23, 49, 38, 0.2);
+}
+
+.visual-table.rectangle .visual-table-core {
+  width: 46%;
+  aspect-ratio: 1.55;
+  border-radius: 26px;
+}
+
+.visual-table.oval .visual-table-core {
+  width: 46%;
+  aspect-ratio: 1.35;
+  border-radius: 50%;
+}
+
+.visual-table.kids .visual-table-core {
+  background: linear-gradient(135deg, #7a8b5c, #b8603e);
+}
+
+.visual-table-core strong {
+  font-family: var(--serif);
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.visual-table-core span {
+  color: rgba(255, 248, 238, 0.78);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.visual-seat {
+  position: absolute;
+  z-index: 2;
+  width: 132px;
+  min-height: 68px;
+  padding: 10px 12px;
+  transform: translate(-50%, -50%);
+  display: grid;
+  gap: 4px;
+  align-content: center;
+  border-radius: 18px;
+  border: 1px dashed rgba(53, 67, 45, 0.22);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 12px 24px rgba(78, 59, 40, 0.1);
+  text-align: left;
+}
+
+.visual-seat:hover {
+  transform: translate(-50%, -52%);
+}
+
+.visual-seat.occupied {
+  border-style: solid;
+  border-color: rgba(184, 96, 62, 0.36);
+  background: #fffaf3;
+}
+
+.visual-seat span {
+  color: var(--text-soft);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.visual-seat strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.88rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.visual-table-note {
+  padding-inline: 6px;
+}
+
+.floating-unseated-panel {
+  position: sticky;
+  bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 249, 0.92);
+  box-shadow: 0 18px 40px rgba(78, 59, 40, 0.16);
+}
+
+.floating-unseated-panel > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 150px;
+}
+
+.floating-unseated-panel strong {
+  font-family: var(--serif);
+  font-size: 1.35rem;
+}
+
+.floating-unseated-list {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.guest-drag-chip {
+  min-height: 36px;
+  padding-inline: 13px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-color: rgba(184, 96, 62, 0.18);
+  box-shadow: none;
+}
+
 @keyframes fade-up {
   from {
     opacity: 0;
@@ -580,5 +847,48 @@ button.danger {
 
   button {
     width: 100%;
+  }
+
+  .view-tabs {
+    justify-self: stretch;
+  }
+
+  .view-tabs button,
+  .visual-seat,
+  .guest-drag-chip {
+    width: auto;
+  }
+
+  .view-tabs button {
+    flex: 1;
+  }
+
+  .visual-heading,
+  .visual-room-header,
+  .floating-unseated-panel {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .visual-tables {
+    grid-template-columns: 1fr;
+  }
+
+  .visual-table-map {
+    min-height: 300px;
+  }
+
+  .visual-seat {
+    width: 106px;
+    min-height: 62px;
+    padding: 8px 10px;
+  }
+
+  .visual-table-core {
+    width: 42%;
+  }
+
+  .floating-unseated-list {
+    justify-content: flex-start;
   }
 }
