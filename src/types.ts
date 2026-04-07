@@ -2,6 +2,7 @@ export type TableShape = 'round' | 'rectangle' | 'oval' | 'kids'
 
 export interface Guest {
   id: string
+  importId: string | null
   name: string
   age: number | null
   circle: string

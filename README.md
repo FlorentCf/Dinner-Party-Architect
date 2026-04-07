@@ -101,10 +101,12 @@ You can also bulk import guests by pasting a list or importing a CSV/TXT file.
 Supported examples:
 
 ```csv
-name,age,circle,tags,notes,partner,table
-Alice Dupont,37,Bride side,"family, calm","Near parents",Noah Martin,Family table
-Noah Martin,39,Bride side,family,,Alice Dupont,Family table
+id,name,age,circle,tags,notes,partner,table
+1,Alice Dupont,37,Bride side,"family, calm","Near parents",2,Family table
+2,Alice Dupont,39,Bride side,family,,1,Family table
 ```
+
+When an `id` column is present, the importer stores it as the guest's import ID. In that mode, duplicate names are allowed and `partner` is treated as the partner's import ID.
 
 Or a very simple list:
 
@@ -114,7 +116,7 @@ Noah Martin
 Emma Laurent
 ```
 
-Existing guests with the same name are skipped so you do not accidentally duplicate the whole list.
+Existing guests with the same import ID are skipped so you do not accidentally duplicate the whole list. If you import a simple list without IDs, existing guests with the same name are skipped instead.
 
 ### 3. Add relationship scores
 

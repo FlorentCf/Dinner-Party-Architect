@@ -1,12 +1,14 @@
 import { parseTagString } from './planUtils'
 
 export interface ImportedGuestDraft {
+  importId: string
   name: string
   age: number | null
   circle: string
   tags: string[]
   notes: string
   partnerName: string
+  partnerImportId: string
   lockedTableName: string
 }
 
@@ -16,12 +18,14 @@ export interface GuestImportResult {
 }
 
 const headerAliases = {
+  importId: ['id', 'guestid', 'inviteid', 'importid'],
   name: ['name', 'guest', 'invite', 'invité', 'prenom', 'prénom', 'nom'],
   age: ['age', 'âge'],
   circle: ['circle', 'group', 'groupe', 'family', 'famille', 'side', 'cote', 'côté'],
   tags: ['tags', 'tag', 'labels', 'categories', 'catégories'],
   notes: ['notes', 'note', 'comment', 'comments', 'commentaire', 'remarque'],
-  partnerName: ['partner', 'partnername', 'couple', 'conjoint', 'spouse'],
+  partnerName: ['partnername', 'couple', 'conjointname', 'conjointnom', 'spouse'],
+  partnerImportId: ['partner', 'partnerid', 'partnerimportid', 'conjointid'],
   lockedTableName: ['table', 'lockedtable', 'fixedtable', 'tablefixe', 'assignedtable'],
 }
 
@@ -111,6 +115,8 @@ function rowToGuest(
   }
 
   return {
+    importId:
+      indexes.importId === undefined ? '' : cells[indexes.importId]?.trim() ?? '',
     name,
     age: indexes.age === undefined ? null : parseAge(cells[indexes.age] ?? ''),
     circle: indexes.circle === undefined ? '' : cells[indexes.circle]?.trim() ?? '',
@@ -120,6 +126,10 @@ function rowToGuest(
       indexes.partnerName === undefined
         ? ''
         : cells[indexes.partnerName]?.trim() ?? '',
+    partnerImportId:
+      indexes.partnerImportId === undefined
+        ? ''
+        : cells[indexes.partnerImportId]?.trim() ?? '',
     lockedTableName:
       indexes.lockedTableName === undefined
         ? ''

@@ -60,6 +60,7 @@ function normalizeGuest(value: unknown): Guest | null {
 
   return {
     id: asString(value.id, createId('guest')),
+    importId: typeof value.importId === 'string' ? value.importId : null,
     name: asString(value.name, 'Guest'),
     age:
       typeof value.age === 'number' && Number.isFinite(value.age)

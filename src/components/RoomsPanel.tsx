@@ -24,6 +24,10 @@ type RoomsPanelProps = {
   ) => void
 }
 
+function formatGuestLabel(guest: Guest) {
+  return guest.importId ? `${guest.name} (ID ${guest.importId})` : guest.name
+}
+
 function RoomsPanel({
   planner,
   guestsById,
@@ -258,7 +262,7 @@ function RoomsPanel({
                                 key={`${table.id}-${seatIndex}`}
                               >
                                 <span className="seat-label">Seat {seatIndex + 1}</span>
-                                <strong>{guest?.name ?? 'Empty seat'}</strong>
+                                <strong>{guest ? formatGuestLabel(guest) : 'Empty seat'}</strong>
                                 <select
                                   value={guestId ?? ''}
                                   onChange={(event) => onSeatChange(table.id, seatIndex, event)}
@@ -276,11 +280,11 @@ function RoomsPanel({
                                           ? ` - ${seat.tableName}`
                                           : ''
 
-                                      return (
-                                        <option key={optionGuest.id} value={optionGuest.id}>
-                                          {optionGuest.name}
-                                          {location}
-                                        </option>
+                                          return (
+                                            <option key={optionGuest.id} value={optionGuest.id}>
+                                              {formatGuestLabel(optionGuest)}
+                                              {location}
+                                            </option>
                                       )
                                     })}
                                 </select>

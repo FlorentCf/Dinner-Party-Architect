@@ -9,6 +9,10 @@ type VisualPlanPanelProps = {
   onUnseatGuest: (guestId: string) => void
 }
 
+function formatGuestLabel(guest: Guest) {
+  return guest.importId ? `${guest.name} (ID ${guest.importId})` : guest.name
+}
+
 function getSeatPosition(table: Table, seatIndex: number, seatCount: number) {
   const angle = (seatIndex / seatCount) * Math.PI * 2 - Math.PI / 2
   const radiusX = table.shape === 'rectangle' ? 40 : 42
@@ -121,7 +125,9 @@ function VisualPlanPanel({
                                 style={position}
                                 title={
                                   guest
-                                    ? `${guest.name} at ${table.name}, seat ${seatIndex + 1}`
+                                    ? `${formatGuestLabel(guest)} at ${table.name}, seat ${
+                                        seatIndex + 1
+                                      }`
                                     : `Empty seat ${seatIndex + 1} at ${table.name}`
                                 }
                                 onDragStart={(event) => {
@@ -133,7 +139,7 @@ function VisualPlanPanel({
                                 onDrop={(event) => handleSeatDrop(event, table.id, seatIndex)}
                               >
                                 <span>Seat {seatIndex + 1}</span>
-                                <strong>{guest?.name ?? 'Empty'}</strong>
+                                <strong>{guest ? formatGuestLabel(guest) : 'Empty'}</strong>
                               </button>
                             )
                           })}
@@ -165,7 +171,7 @@ function VisualPlanPanel({
                 key={guest.id}
                 onDragStart={(event) => handleDragStart(event, guest.id)}
               >
-                {guest.name}
+                {formatGuestLabel(guest)}
               </button>
             ))
           )}

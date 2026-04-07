@@ -23,6 +23,10 @@ type GuestsPanelProps = {
   onImportGuests: (rawGuestList: string) => void
 }
 
+function formatGuestLabel(guest: Guest) {
+  return guest.importId ? `${guest.name} (ID ${guest.importId})` : guest.name
+}
+
 function GuestsPanel({
   planner,
   filteredGuests,
@@ -135,8 +139,9 @@ function GuestsPanel({
           </div>
           <p>
             Works with one name per line, or columns like
-            <code>name, age, circle, tags, notes, partner, table</code>. Existing
-            guests with the same name are skipped.
+            <code>id, name, age, circle, tags, notes, partner, table</code>. If
+            <code>id</code> is present, <code>partner</code> is treated as a
+            partner ID and duplicate names are allowed.
           </p>
         </div>
         <label className="field wide">
@@ -144,7 +149,7 @@ function GuestsPanel({
           <textarea
             value={importText}
             onChange={(event) => setImportText(event.target.value)}
-            placeholder={'Alice Dupont, 37, Bride side, family\nNoah Martin, 39, Bride side, family'}
+            placeholder={'id,name,age,circle,tags,notes,partner,table\n1,Alice Dupont,37,Bride side,family,,2,\n2,Alice Dupont,39,Bride side,family,,1,'}
           />
         </label>
         <div className="button-row import-actions">
@@ -177,7 +182,7 @@ function GuestsPanel({
               <article className="guest-card" key={guest.id}>
                 <div className="guest-card-top">
                   <div className="guest-status">
-                    <strong>{guest.name}</strong>
+                    <strong>{formatGuestLabel(guest)}</strong>
                     <span className={`seat-badge ${seat ? 'filled' : 'empty'}`}>
                       {seat
                         ? `${seat.roomName} / ${seat.tableName} / Seat ${seat.seatIndex + 1}`
@@ -232,7 +237,7 @@ function GuestsPanel({
                         .sort((first, second) => first.name.localeCompare(second.name))
                         .map((optionGuest) => (
                           <option key={optionGuest.id} value={optionGuest.id}>
-                            {optionGuest.name}
+                            {formatGuestLabel(optionGuest)}
                           </option>
                       ))}
                     </select>

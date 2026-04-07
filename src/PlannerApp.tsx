@@ -57,32 +57,56 @@ function normalizeGuestImportName(value: string) {
     .replace(/\s+/g, ' ')
 }
 
+function normalizeGuestImportId(value: string) {
+  return value.trim().toLowerCase()
+}
+
 function addImportedGuests(planner: PlannerData, drafts: ImportedGuestDraft[]) {
   const nameToId = new Map(
     planner.guests.map((guest) => [normalizeGuestImportName(guest.name), guest.id]),
+  )
+  const importIdToId = new Map(
+    planner.guests
+      .filter((guest) => guest.importId)
+      .map((guest) => [normalizeGuestImportId(guest.importId ?? ''), guest.id]),
   )
   const tableNameToId = new Map(
     planner.tables.map((table) => [normalizeGuestImportName(table.name), table.id]),
   )
   const nextGuests: Guest[] = [...planner.guests]
-  const partnerRequests: Array<{ guestId: string; partnerName: string }> = []
+  const partnerRequests: Array<{
+    guestId: string
+    partnerImportId: string
+    partnerName: string
+  }> = []
   let duplicateCount = 0
   let importedCount = 0
 
   for (const draft of drafts) {
     const normalizedName = normalizeGuestImportName(draft.name)
+    const normalizedImportId = normalizeGuestImportId(draft.importId)
+    const duplicateByImportId = Boolean(
+      normalizedImportId && importIdToId.has(normalizedImportId),
+    )
+    const duplicateByName = Boolean(!normalizedImportId && nameToId.has(normalizedName))
 
-    if (!normalizedName || nameToId.has(normalizedName)) {
+    if (!normalizedName || duplicateByImportId || duplicateByName) {
       duplicateCount += 1
       continue
     }
 
     const guestId = createId('guest')
-    nameToId.set(normalizedName, guestId)
+    if (!nameToId.has(normalizedName)) {
+      nameToId.set(normalizedName, guestId)
+    }
+    if (normalizedImportId) {
+      importIdToId.set(normalizedImportId, guestId)
+    }
     importedCount += 1
 
     nextGuests.push({
       id: guestId,
+      importId: draft.importId.trim() || null,
       name: draft.name,
       age: draft.age,
       circle: draft.circle,
@@ -94,9 +118,10 @@ function addImportedGuests(planner: PlannerData, drafts: ImportedGuestDraft[]) {
       notes: draft.notes,
     })
 
-    if (draft.partnerName.trim()) {
+    if (draft.partnerImportId.trim() || draft.partnerName.trim()) {
       partnerRequests.push({
         guestId,
+        partnerImportId: draft.partnerImportId,
         partnerName: draft.partnerName,
       })
     }
@@ -106,7 +131,9 @@ function addImportedGuests(planner: PlannerData, drafts: ImportedGuestDraft[]) {
   const guestIndexById = new Map(linkedGuests.map((guest, index) => [guest.id, index]))
 
   for (const request of partnerRequests) {
-    const partnerId = nameToId.get(normalizeGuestImportName(request.partnerName))
+    const partnerId =
+      importIdToId.get(normalizeGuestImportId(request.partnerImportId)) ??
+      nameToId.get(normalizeGuestImportName(request.partnerName))
     const guestIndex = guestIndexById.get(request.guestId)
     const partnerIndex = partnerId ? guestIndexById.get(partnerId) : undefined
 
@@ -221,6 +248,7 @@ function PlannerApp() {
         ...current.guests,
         {
           id: createId('guest'),
+          importId: null,
           name: guestName,
           age: guestDraft.age ? clamp(Number(guestDraft.age), 0, 120) : null,
           circle: guestDraft.circle.trim(),

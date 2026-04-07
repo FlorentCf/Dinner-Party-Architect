@@ -19,6 +19,7 @@ The main layers are:
 Each guest stores:
 
 - `name`
+- `importId`
 - `age`
 - `circle`
 - `partnerId`
@@ -131,9 +132,11 @@ The parser supports:
 - one name per line
 - CSV-style rows with commas, semicolons, or tabs
 - quoted CSV cells
-- common English and French-ish headers such as `name`, `invite`, `prénom`, `age`, `groupe`, `notes`, `conjoint`, and `table`
+- stable import IDs through headers such as `id`, `guestId`, or `importId`
+- partner linking by import ID through headers such as `partner`, `partnerId`, or `conjointId`
+- common English and French-ish headers such as `name`, `invite`, `prénom`, `age`, `groupe`, `notes`, and `table`
 
-Imported guests are merged into the current plan. Existing guest names are skipped to prevent accidental duplicates.
+Imported guests are merged into the current plan. If import IDs are present, existing import IDs are skipped while duplicate names are allowed. Without import IDs, existing guest names are skipped to prevent accidental duplicates.
 
 This keeps the engine understandable and good enough for iterative planning.
 

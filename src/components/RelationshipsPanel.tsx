@@ -1,9 +1,9 @@
-import type { PlannerData } from '../types'
+import type { Guest, PlannerData } from '../types'
 import type { AffinityDraft } from '../viewModels'
 
 type RelationshipsPanelProps = {
   planner: PlannerData
-  guestsById: Map<string, { id: string; name: string }>
+  guestsById: Map<string, Guest>
   affinityCards: PlannerData['affinities']
   affinityDraft: AffinityDraft
   onAffinityDraftChange: (field: keyof AffinityDraft, value: string) => void
@@ -14,6 +14,10 @@ type RelationshipsPanelProps = {
     value: string,
   ) => void
   onRemoveAffinity: (affinityId: string) => void
+}
+
+function formatGuestLabel(guest: Guest) {
+  return guest.importId ? `${guest.name} (ID ${guest.importId})` : guest.name
 }
 
 function RelationshipsPanel({
@@ -53,7 +57,7 @@ function RelationshipsPanel({
                 .sort((first, second) => first.name.localeCompare(second.name))
                 .map((guest) => (
                   <option key={guest.id} value={guest.id}>
-                    {guest.name}
+                    {formatGuestLabel(guest)}
                   </option>
                 ))}
             </select>
@@ -70,7 +74,7 @@ function RelationshipsPanel({
                 .sort((first, second) => first.name.localeCompare(second.name))
                 .map((guest) => (
                   <option key={guest.id} value={guest.id}>
-                    {guest.name}
+                    {formatGuestLabel(guest)}
                   </option>
                 ))}
             </select>
@@ -119,7 +123,7 @@ function RelationshipsPanel({
               >
                 <div className="affinity-top">
                   <strong>
-                    {guestA.name} + {guestB.name}
+                    {formatGuestLabel(guestA)} + {formatGuestLabel(guestB)}
                   </strong>
                   <span className="score-tag">{affinity.score}</span>
                 </div>
