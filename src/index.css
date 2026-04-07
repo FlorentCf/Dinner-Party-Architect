@@ -52,13 +52,15 @@ body {
 body,
 input,
 button,
-select {
+select,
+textarea {
   font-family: var(--sans);
 }
 
 button,
 input,
-select {
+select,
+textarea {
   border: 0;
   outline: 0;
 }
@@ -128,9 +130,23 @@ h2 {
   font-size: clamp(1.5rem, 2.3vw, 2.15rem);
 }
 
+h3 {
+  margin: 0;
+  color: #1f231d;
+  font-size: 1.08rem;
+}
+
 p {
   margin: 0;
   color: var(--text-soft);
+}
+
+code {
+  padding: 2px 6px;
+  border-radius: 7px;
+  background: rgba(23, 49, 38, 0.08);
+  color: #173126;
+  font-size: 0.88em;
 }
 
 .hero-text {
@@ -219,6 +235,10 @@ button.danger {
 
 .helper-copy {
   font-size: 0.92rem;
+}
+
+.strategy-field {
+  max-width: 360px;
 }
 
 .stats-grid {
@@ -354,19 +374,32 @@ button.danger {
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   width: 100%;
-  min-height: 44px;
   border-radius: var(--radius-sm);
   border: 1px solid rgba(53, 67, 45, 0.12);
   background: rgba(255, 255, 255, 0.88);
-  padding: 0 14px;
   color: var(--text);
   font-size: 0.95rem;
 }
 
+.field input,
+.field select {
+  min-height: 44px;
+  padding: 0 14px;
+}
+
+.field textarea {
+  min-height: 118px;
+  padding: 12px 14px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
 .field input:focus,
-.field select:focus {
+.field select:focus,
+.field textarea:focus {
   border-color: rgba(184, 96, 62, 0.44);
   box-shadow: 0 0 0 4px rgba(184, 96, 62, 0.12);
 }
@@ -435,6 +468,25 @@ button.danger {
 .guest-chip.quiet {
   background: rgba(122, 139, 92, 0.14);
   color: #52613f;
+}
+
+.import-card {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.import-card-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.import-card .field {
+  grid-column: auto;
+}
+
+.import-actions {
+  justify-content: flex-start;
 }
 
 .room-stack,

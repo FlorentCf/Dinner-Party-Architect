@@ -1,3 +1,4 @@
+import { useRef, useState, type ChangeEvent } from 'react'
 import { formatTagString } from '../planUtils'
 import type { Guest, PlannerData } from '../types'
 import type { GuestDraft, GuestSeatInfo } from '../viewModels'
@@ -17,7 +18,9 @@ type GuestsPanelProps = {
     value: string,
   ) => void
   onPartnerChange: (guestId: string, value: string) => void
+  onGuestTableLockChange: (guestId: string, tableId: string) => void
   onRemoveGuest: (guestId: string) => void
+  onImportGuests: (rawGuestList: string) => void
 }
 
 function GuestsPanel({
@@ -31,10 +34,39 @@ function GuestsPanel({
   onGuestSearchChange,
   onGuestFieldChange,
   onPartnerChange,
+  onGuestTableLockChange,
   onRemoveGuest,
+  onImportGuests,
 }: GuestsPanelProps) {
+  const [importText, setImportText] = useState('')
+  const importFileRef = useRef<HTMLInputElement | null>(null)
+
+  function handlePastedImport() {
+    onImportGuests(importText)
+    setImportText('')
+  }
+
+  async function handleImportFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) {
+      return
+    }
+
+    const content = await file.text()
+    onImportGuests(content)
+    event.target.value = ''
+  }
+
   return (
     <section className="panel">
+      <input
+        ref={importFileRef}
+        type="file"
+        accept=".csv,.txt,text/csv,text/plain"
+        hidden
+        onChange={handleImportFile}
+      />
+
       <div className="section-heading">
         <div>
           <span className="section-kicker">2. Guests</span>
@@ -92,6 +124,34 @@ function GuestsPanel({
             />
           </label>
           <button onClick={onAddGuest}>Add guest</button>
+        </div>
+      </div>
+
+      <div className="editor-card import-card">
+        <div className="import-card-copy">
+          <div>
+            <span className="section-kicker">Bulk import</span>
+            <h3>Paste a guest list or import a CSV file.</h3>
+          </div>
+          <p>
+            Works with one name per line, or columns like
+            <code>name, age, circle, tags, notes, partner, table</code>. Existing
+            guests with the same name are skipped.
+          </p>
+        </div>
+        <label className="field wide">
+          <span>Paste list</span>
+          <textarea
+            value={importText}
+            onChange={(event) => setImportText(event.target.value)}
+            placeholder={'Alice Dupont, 37, Bride side, family\nNoah Martin, 39, Bride side, family'}
+          />
+        </label>
+        <div className="button-row import-actions">
+          <button className="primary" onClick={handlePastedImport}>
+            Import pasted list
+          </button>
+          <button onClick={() => importFileRef.current?.click()}>Import CSV/TXT file</button>
         </div>
       </div>
 
@@ -173,6 +233,25 @@ function GuestsPanel({
                         .map((optionGuest) => (
                           <option key={optionGuest.id} value={optionGuest.id}>
                             {optionGuest.name}
+                          </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Fixed table</span>
+                    <select
+                      value={guest.lockedTableId ?? ''}
+                      onChange={(event) =>
+                        onGuestTableLockChange(guest.id, event.target.value)
+                      }
+                    >
+                      <option value="">No fixed table</option>
+                      {planner.tables
+                        .slice()
+                        .sort((first, second) => first.name.localeCompare(second.name))
+                        .map((table) => (
+                          <option key={table.id} value={table.id}>
+                            {table.name}
                           </option>
                         ))}
                     </select>

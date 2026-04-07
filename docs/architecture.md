@@ -22,6 +22,7 @@ Each guest stores:
 - `age`
 - `circle`
 - `partnerId`
+- `lockedTableId`
 - `tags`
 - `notes`
 
@@ -59,6 +60,8 @@ An affinity links two guests with:
 
 Scores are symmetric. The UI treats `Alice + Bob` the same as `Bob + Alice`.
 
+Scores at `+100` are treated as hard "must sit together" rules during evaluation and smart assignment. Strong negative scores are treated as hard avoid rules, especially in strict assignment mode.
+
 ## Seating representation
 
 Seating is stored as:
@@ -94,21 +97,43 @@ The engine:
 
 1. ranks guests by difficulty
 2. optionally clears all seating or only fills unseated guests
-3. tries multiple randomized greedy placement passes
+3. filters table choices when a guest has a fixed-table lock
 4. evaluates each resulting plan
-5. keeps the highest scoring result
+5. tries multiple randomized greedy placement passes
+6. keeps the highest scoring result
+
+The UI exposes three assignment strategies:
+
+- `balanced`: default weighting
+- `social`: heavier social matching for circles, tags, and affinities
+- `strict`: lower tolerance for hard avoid scores and more weight for fixed rules
 
 ### Signals used in scoring
 
 - explicit affinity score
+- fixed-table lock
 - partner bonus
 - same circle bonus
 - shared tag bonus
 - age-band nudges
 - adjacency bonus
 - hard penalties for severe negative matches
+- hard penalties for separated `+100` relationships
 - penalties for separated partners
 - penalties for unseated guests
+
+## Guest import
+
+Guest list import is handled by `guestImport.ts`.
+
+The parser supports:
+
+- one name per line
+- CSV-style rows with commas, semicolons, or tabs
+- quoted CSV cells
+- common English and French-ish headers such as `name`, `invite`, `prénom`, `age`, `groupe`, `notes`, `conjoint`, and `table`
+
+Imported guests are merged into the current plan. Existing guest names are skipped to prevent accidental duplicates.
 
 This keeps the engine understandable and good enough for iterative planning.
 
@@ -144,8 +169,7 @@ The current layout favors form clarity over dense spreadsheets because wedding p
 
 If the project continues, these improvements would bring the biggest payoff:
 
-- introduce seat locks before optimization
-- add CSV import/export
+- add CSV export
 - split long state handlers into dedicated hooks
 - add unit tests around scoring and hydration
 - add Playwright coverage for the core flows

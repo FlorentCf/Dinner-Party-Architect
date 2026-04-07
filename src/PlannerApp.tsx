@@ -11,6 +11,7 @@ import GuestsPanel from './components/GuestsPanel'
 import RelationshipsPanel from './components/RelationshipsPanel'
 import RoomsPanel from './components/RoomsPanel'
 import VisualPlanPanel from './components/VisualPlanPanel'
+import { parseGuestImport, type ImportedGuestDraft } from './guestImport'
 import {
   autoAssignGuests,
   cloneSeating,
@@ -34,7 +35,7 @@ import {
   STORAGE_KEY,
 } from './plannerHelpers'
 import samplePlan from './samplePlan'
-import type { PlannerData, Room, Table } from './types'
+import type { AutoAssignStrategy, Guest, PlannerData, Room, Table } from './types'
 import {
   emptyAffinityDraft,
   emptyGuestDraft,
@@ -47,9 +48,99 @@ import {
 
 type ActiveView = 'editor' | 'visual'
 
+function normalizeGuestImportName(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+}
+
+function addImportedGuests(planner: PlannerData, drafts: ImportedGuestDraft[]) {
+  const nameToId = new Map(
+    planner.guests.map((guest) => [normalizeGuestImportName(guest.name), guest.id]),
+  )
+  const tableNameToId = new Map(
+    planner.tables.map((table) => [normalizeGuestImportName(table.name), table.id]),
+  )
+  const nextGuests: Guest[] = [...planner.guests]
+  const partnerRequests: Array<{ guestId: string; partnerName: string }> = []
+  let duplicateCount = 0
+  let importedCount = 0
+
+  for (const draft of drafts) {
+    const normalizedName = normalizeGuestImportName(draft.name)
+
+    if (!normalizedName || nameToId.has(normalizedName)) {
+      duplicateCount += 1
+      continue
+    }
+
+    const guestId = createId('guest')
+    nameToId.set(normalizedName, guestId)
+    importedCount += 1
+
+    nextGuests.push({
+      id: guestId,
+      name: draft.name,
+      age: draft.age,
+      circle: draft.circle,
+      partnerId: null,
+      lockedTableId: draft.lockedTableName
+        ? tableNameToId.get(normalizeGuestImportName(draft.lockedTableName)) ?? null
+        : null,
+      tags: draft.tags,
+      notes: draft.notes,
+    })
+
+    if (draft.partnerName.trim()) {
+      partnerRequests.push({
+        guestId,
+        partnerName: draft.partnerName,
+      })
+    }
+  }
+
+  const linkedGuests = nextGuests.map((guest) => ({ ...guest }))
+  const guestIndexById = new Map(linkedGuests.map((guest, index) => [guest.id, index]))
+
+  for (const request of partnerRequests) {
+    const partnerId = nameToId.get(normalizeGuestImportName(request.partnerName))
+    const guestIndex = guestIndexById.get(request.guestId)
+    const partnerIndex = partnerId ? guestIndexById.get(partnerId) : undefined
+
+    if (
+      partnerId &&
+      partnerId !== request.guestId &&
+      guestIndex !== undefined &&
+      partnerIndex !== undefined
+    ) {
+      if (!linkedGuests[guestIndex].partnerId) {
+        linkedGuests[guestIndex].partnerId = partnerId
+      }
+
+      if (!linkedGuests[partnerIndex].partnerId) {
+        linkedGuests[partnerIndex].partnerId = request.guestId
+      }
+    }
+  }
+
+  return {
+    planner: {
+      ...planner,
+      guests: linkedGuests,
+    },
+    duplicateCount,
+    importedCount,
+  }
+}
+
 function PlannerApp() {
   const [planner, setPlanner] = useState(loadInitialPlannerData)
   const [activeView, setActiveView] = useState<ActiveView>('editor')
+  const [autoAssignStrategy, setAutoAssignStrategy] =
+    useState<AutoAssignStrategy>('balanced')
   const [guestDraft, setGuestDraft] = useState<GuestDraft>(emptyGuestDraft)
   const [roomDraft, setRoomDraft] = useState<RoomDraft>(emptyRoomDraft)
   const [tableDraft, setTableDraft] = useState<TableDraft>({
@@ -134,6 +225,7 @@ function PlannerApp() {
           age: guestDraft.age ? clamp(Number(guestDraft.age), 0, 120) : null,
           circle: guestDraft.circle.trim(),
           partnerId: null,
+          lockedTableId: null,
           tags: parseTagString(guestDraft.tags),
           notes: guestDraft.notes.trim(),
         },
@@ -141,6 +233,35 @@ function PlannerApp() {
     }))
     setGuestDraft(emptyGuestDraft)
     setStatusMessage(`Added ${guestName}.`)
+  }
+
+  function handleImportGuests(rawGuestList: string) {
+    const importResult = parseGuestImport(rawGuestList)
+
+    if (importResult.guests.length === 0) {
+      setStatusMessage('No guests found to import. Try one name per line or a CSV with a name column.')
+      return
+    }
+
+    const result = addImportedGuests(planner, importResult.guests)
+
+    if (result.importedCount === 0) {
+      setStatusMessage(
+        `No new guests imported. ${result.duplicateCount + importResult.skippedRows} row${
+          result.duplicateCount + importResult.skippedRows === 1 ? '' : 's'
+        } skipped.`,
+      )
+      return
+    }
+
+    setPlanner(result.planner)
+    setStatusMessage(
+      `Imported ${result.importedCount} guest${
+        result.importedCount === 1 ? '' : 's'
+      }. ${result.duplicateCount + importResult.skippedRows} row${
+        result.duplicateCount + importResult.skippedRows === 1 ? '' : 's'
+      } skipped.`,
+    )
   }
 
   function handleGuestFieldChange(
@@ -179,6 +300,20 @@ function PlannerApp() {
 
   function handlePartnerChange(guestId: string, value: string) {
     setPlanner((current) => setGuestPartner(current, guestId, value || null))
+  }
+
+  function handleGuestTableLockChange(guestId: string, tableId: string) {
+    setPlanner((current) => ({
+      ...current,
+      guests: current.guests.map((guest) =>
+        guest.id === guestId
+          ? {
+              ...guest,
+              lockedTableId: tableId || null,
+            }
+          : guest,
+      ),
+    }))
   }
 
   function handleRemoveGuest(guestId: string) {
@@ -569,12 +704,12 @@ function PlannerApp() {
   function handleAutoSeat(mode: 'all' | 'unseated') {
     setStatusMessage(
       mode === 'all'
-        ? 'Rebuilding the whole seating plan.'
-        : 'Placing the remaining guests based on your current constraints.',
+        ? `Rebuilding the whole seating plan with ${autoAssignStrategy} logic.`
+        : `Placing the remaining guests with ${autoAssignStrategy} logic.`,
     )
 
     startTransition(() => {
-      setPlanner((current) => autoAssignGuests(current, mode))
+      setPlanner((current) => autoAssignGuests(current, mode, autoAssignStrategy))
     })
   }
 
@@ -674,6 +809,19 @@ function PlannerApp() {
             <button onClick={() => handleAutoSeat('all')}>Rebuild all seating</button>
             <button onClick={handleClearAssignments}>Clear seats</button>
           </div>
+          <label className="field strategy-field">
+            <span>Smart assign style</span>
+            <select
+              value={autoAssignStrategy}
+              onChange={(event) =>
+                setAutoAssignStrategy(event.target.value as AutoAssignStrategy)
+              }
+            >
+              <option value="balanced">Balanced</option>
+              <option value="social">Keep social groups together</option>
+              <option value="strict">Strict rules first</option>
+            </select>
+          </label>
           <div className="button-row">
             <button onClick={handleExport}>Export JSON</button>
             <button onClick={() => importRef.current?.click()}>Import JSON</button>
@@ -755,10 +903,12 @@ function PlannerApp() {
             }
             onAddGuest={handleAddGuest}
             onGuestSearchChange={setGuestSearch}
-            onGuestFieldChange={handleGuestFieldChange}
-            onPartnerChange={handlePartnerChange}
-            onRemoveGuest={handleRemoveGuest}
-          />
+          onGuestFieldChange={handleGuestFieldChange}
+          onPartnerChange={handlePartnerChange}
+          onGuestTableLockChange={handleGuestTableLockChange}
+          onRemoveGuest={handleRemoveGuest}
+          onImportGuests={handleImportGuests}
+        />
 
           <RelationshipsPanel
             planner={planner}

@@ -34,8 +34,8 @@ function RelationshipsPanel({
           <h2>Tell the planner who clicks and who does not.</h2>
         </div>
         <p>
-          Use scores from +100 to -100. Strong negatives are treated as "please do
-          not seat together".
+          Use +100 as "must sit together" and -100 as "avoid at all cost".
+          Softer scores still guide the smart assigner.
         </p>
       </div>
 

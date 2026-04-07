@@ -1,5 +1,6 @@
 import type {
   Affinity,
+  AutoAssignStrategy,
   Guest,
   PlanEvaluation,
   PlannerData,
@@ -66,6 +67,8 @@ function normalizeGuest(value: unknown): Guest | null {
         : null,
     circle: asString(value.circle),
     partnerId: typeof value.partnerId === 'string' ? value.partnerId : null,
+    lockedTableId:
+      typeof value.lockedTableId === 'string' ? value.lockedTableId : null,
     tags: Array.isArray(value.tags)
       ? value.tags.map((item) => asString(item)).filter(Boolean)
       : [],
@@ -208,10 +211,15 @@ export function hydratePlannerData(value: unknown): PlannerData {
   )
 
   const guestMap = new Map(guests.map((guest) => [guest.id, guest]))
+  const validTableIds = new Set(tables.map((table) => table.id))
   const normalizedGuests = guests.map((guest) => ({
     ...guest,
     partnerId:
       guest.partnerId && guestMap.has(guest.partnerId) ? guest.partnerId : null,
+    lockedTableId:
+      guest.lockedTableId && validTableIds.has(guest.lockedTableId)
+        ? guest.lockedTableId
+        : null,
   }))
 
   return {
@@ -395,9 +403,12 @@ function scoreSeatChoice(
   seatIndex: number,
   guest: Guest,
   affinityMap: Map<string, number>,
+  strategy: AutoAssignStrategy,
 ) {
   const guestMap = new Map(planner.guests.map((currentGuest) => [currentGuest.id, currentGuest]))
   const tableSeats = planner.seating[table.id] ?? []
+  const socialWeight = strategy === 'social' ? 1.4 : strategy === 'strict' ? 1.12 : 1
+  const hardAvoidScore = strategy === 'strict' ? -60 : HARD_AVOID_SCORE
   const occupants = tableSeats
     .map((guestId) => (guestId ? guestMap.get(guestId) ?? null : null))
     .filter(isPresent)
@@ -407,8 +418,8 @@ function scoreSeatChoice(
 
   for (const occupant of occupants) {
     const pairScore = getPairScore(guest, occupant, affinityMap)
-    score += pairScore
-    if (pairScore <= HARD_AVOID_SCORE) {
+    score += pairScore * socialWeight
+    if (pairScore <= hardAvoidScore) {
       hardConflict = true
       score -= 500
     }
@@ -427,7 +438,7 @@ function scoreSeatChoice(
     }
 
     const pairScore = getPairScore(guest, adjacentGuest, affinityMap)
-    score += pairScore * 0.35
+    score += pairScore * 0.35 * socialWeight
 
     if (guest.partnerId === adjacentGuest.id || adjacentGuest.partnerId === guest.id) {
       score += 8
@@ -445,6 +456,39 @@ function scoreSeatChoice(
     } else if (tableSeats.filter(Boolean).length < table.seatCount - 1) {
       score += 4
     }
+  }
+
+  for (const affinity of planner.affinities) {
+    if (affinity.score < 100) {
+      continue
+    }
+
+    const forcedGuestId =
+      affinity.guestAId === guest.id
+        ? affinity.guestBId
+        : affinity.guestBId === guest.id
+          ? affinity.guestAId
+          : null
+
+    if (!forcedGuestId) {
+      continue
+    }
+
+    const forcedSeat = getGuestSeat(planner.seating, forcedGuestId)
+    if (forcedSeat?.tableId === table.id) {
+      score += strategy === 'strict' ? 220 : 150
+    } else if (forcedSeat) {
+      hardConflict = true
+      score -= strategy === 'strict' ? 900 : 650
+    } else if (tableSeats.filter(Boolean).length < table.seatCount - 1) {
+      score += strategy === 'strict' ? 40 : 18
+    } else {
+      score -= 80
+    }
+  }
+
+  if (guest.lockedTableId === table.id) {
+    score += 75
   }
 
   return { score, hardConflict }
@@ -520,6 +564,7 @@ function clearSeating(planner: PlannerData) {
 export function autoAssignGuests(
   planner: PlannerData,
   mode: 'all' | 'unseated' = 'unseated',
+  strategy: AutoAssignStrategy = 'balanced',
 ) {
   const basePlanner: PlannerData =
     mode === 'all'
@@ -542,7 +587,10 @@ export function autoAssignGuests(
   let bestPlanner = basePlanner
   let bestScore = evaluatePlan(basePlanner).score
 
-  for (let attempt = 0; attempt < 120; attempt += 1) {
+  const attempts = strategy === 'strict' ? 180 : 120
+  const randomNoise = strategy === 'strict' ? 0.4 : strategy === 'social' ? 4 : 2.5
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
     const workingPlanner: PlannerData = {
       ...basePlanner,
       seating: cloneSeating(basePlanner.seating),
@@ -558,10 +606,21 @@ export function autoAssignGuests(
           })),
         )
         .filter((option) => !option.currentGuestId)
+        .filter(
+          (option) =>
+            !guest.lockedTableId || option.table.id === guest.lockedTableId,
+        )
         .map((option) => ({
           ...option,
-          ...scoreSeatChoice(workingPlanner, option.table, option.seatIndex, guest, affinityMap),
-          noise: Math.random() * 2.5,
+          ...scoreSeatChoice(
+            workingPlanner,
+            option.table,
+            option.seatIndex,
+            guest,
+            affinityMap,
+            strategy,
+          ),
+          noise: Math.random() * randomNoise,
         }))
         .sort((first, second) => second.score + second.noise - (first.score + first.noise))
 
@@ -677,6 +736,32 @@ export function evaluatePlan(planner: PlannerData): PlanEvaluation {
 
     if (guestSeat.tableId !== partnerSeat.tableId) {
       score -= 24
+    }
+  }
+
+  for (const guest of planner.guests) {
+    if (!guest.lockedTableId) {
+      continue
+    }
+
+    const guestSeat = seatedLookup.get(guest.id)
+    if (guestSeat && guestSeat.tableId !== guest.lockedTableId) {
+      hardConflicts += 1
+      score -= 500
+    }
+  }
+
+  for (const affinity of planner.affinities) {
+    if (affinity.score < 100) {
+      continue
+    }
+
+    const firstSeat = seatedLookup.get(affinity.guestAId)
+    const secondSeat = seatedLookup.get(affinity.guestBId)
+
+    if (firstSeat && secondSeat && firstSeat.tableId !== secondSeat.tableId) {
+      hardConflicts += 1
+      score -= 500
     }
   }
 

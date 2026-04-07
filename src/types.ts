@@ -6,9 +6,12 @@ export interface Guest {
   age: number | null
   circle: string
   partnerId: string | null
+  lockedTableId: string | null
   tags: string[]
   notes: string
 }
+
+export type AutoAssignStrategy = 'balanced' | 'social' | 'strict'
 
 export interface Room {
   id: string

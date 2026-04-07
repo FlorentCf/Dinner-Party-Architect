@@ -10,6 +10,8 @@ It is designed to stay easy to use for a real couple planning a wedding, while s
 - guest age, social circle, tags, and notes
 - couples and partner links
 - pairwise affinity scores from `+100` to `-100`
+- fixed-table guest locks for people who must stay at a specific table
+- CSV/TXT or pasted guest list import
 - automatic seating suggestions that try to keep good matches together and avoid painful ones
 - a visual seating tab with drag-and-drop moves and swaps
 - JSON import/export for backups
@@ -86,6 +88,7 @@ For each guest, you can store:
 - tags
 - notes
 - partner
+- fixed table
 
 Suggested uses:
 
@@ -93,11 +96,31 @@ Suggested uses:
 - `tags`: calm, dancefloor, family, travel, kids, vegan, shy
 - `notes`: wants a quiet table, okay near speakers, should not be with ex, can help lead conversation
 
+You can also bulk import guests by pasting a list or importing a CSV/TXT file.
+
+Supported examples:
+
+```csv
+name,age,circle,tags,notes,partner,table
+Alice Dupont,37,Bride side,"family, calm","Near parents",Noah Martin,Family table
+Noah Martin,39,Bride side,family,,Alice Dupont,Family table
+```
+
+Or a very simple list:
+
+```text
+Alice Dupont
+Noah Martin
+Emma Laurent
+```
+
+Existing guests with the same name are skipped so you do not accidentally duplicate the whole list.
+
 ### 3. Add relationship scores
 
 Relationship scores are the main signal for the auto-seating engine.
 
-- `+100`: seat together if possible
+- `+100`: must sit together
 - `+50`: strong positive match
 - `0`: neutral
 - `-50`: avoid when practical
@@ -116,9 +139,15 @@ Examples:
 The planner supports two modes:
 
 - `Seat remaining guests`: keeps your existing placements and fills the gaps
-- `Rebuild all seating`: reshuffles the entire plan from scratch
+- `Rebuild all seating`: reshuffles the entire plan from scratch, but respects fixed-table locks and hard `+100` together rules
 
-You can always override any seat manually afterward.
+You can always override any seat manually afterward. If somebody must stay at a table, set their `Fixed table` field in the guest editor before rebuilding.
+
+There are also multiple smart-assign styles:
+
+- `Balanced`: general-purpose default
+- `Keep social groups together`: gives more weight to circles, tags, and affinities
+- `Strict rules first`: treats strong negative and hard together rules more aggressively
 
 ### 5. Use the visual plan
 
@@ -172,6 +201,8 @@ src/
     RelationshipsPanel.tsx
     RoomsPanel.tsx
     StatCard.tsx
+    VisualPlanPanel.tsx
+  guestImport.ts
   planUtils.ts
   plannerHelpers.ts
   samplePlan.ts
@@ -198,10 +229,8 @@ Automatic suggestions are useful, but wedding seating often needs human nuance. 
 Good next steps if you keep building this:
 
 - guest groups larger than couples
-- import from CSV
 - printable floor plan views
 - per-table themes like kids, family, party, quiet
-- locking specific guests or tables before re-running auto-seat
 - better optimization with multiple passes or simulated annealing
 - shareable hosted version
 
