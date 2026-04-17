@@ -9,6 +9,8 @@ import type {
 } from './types'
 
 const HARD_AVOID_SCORE = -90
+const FIXED_TABLE_PENALTY = 5000
+const TOGETHER_RULE_PENALTY = 1800
 
 export function createId(prefix: string) {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -508,6 +510,9 @@ function scoreSeatChoice(
   const guestMap = new Map(planner.guests.map((currentGuest) => [currentGuest.id, currentGuest]))
   const tableSeats = planner.seating[table.id] ?? []
   const effectiveLockedTableId = getEffectiveLockedTableId(guest, guestMap)
+  const placementGroupGuestIds = getPlacementGroupGuestIds(planner, guest, table.id)
+  const placementGroupGuestIdSet = new Set(placementGroupGuestIds)
+  const emptySeatCount = tableSeats.filter((seatGuestId) => seatGuestId === null).length
   const socialWeight =
     strategy === 'social'
       ? 1.4
@@ -524,7 +529,28 @@ function scoreSeatChoice(
 
   if (effectiveLockedTableId && effectiveLockedTableId !== table.id) {
     return {
-      score: -1000,
+      score: -FIXED_TABLE_PENALTY,
+      hardConflict: true,
+    }
+  }
+
+  if (emptySeatCount < placementGroupGuestIds.length) {
+    return {
+      score: -TOGETHER_RULE_PENALTY,
+      hardConflict: true,
+    }
+  }
+
+  const remainingLockedDemand = getRemainingLockedDemandAfterPlacement(
+    planner,
+    guestMap,
+    table.id,
+    placementGroupGuestIdSet,
+  )
+
+  if (emptySeatCount - placementGroupGuestIds.length < remainingLockedDemand) {
+    return {
+      score: -FIXED_TABLE_PENALTY,
       hardConflict: true,
     }
   }
@@ -589,28 +615,27 @@ function scoreSeatChoice(
 
   if (guest.partnerId) {
     const partnerSeat = getGuestSeat(planner.seating, guest.partnerId)
-    const emptySeatCount = tableSeats.filter((seatGuestId) => seatGuestId === null).length
     const partner = guestMap.get(guest.partnerId)
     const partnerLockedTableId = partner
       ? getEffectiveLockedTableId(partner, guestMap)
       : null
 
     if (partnerSeat) {
-      if (partnerSeat.tableId === table.id) {
-        score += 28
-      } else {
+        if (partnerSeat.tableId === table.id) {
+          score += 28
+        } else {
+          hardConflict = true
+          score -= TOGETHER_RULE_PENALTY
+        }
+      } else if (
+        (partnerLockedTableId && partnerLockedTableId !== table.id) ||
+        emptySeatCount < 2
+      ) {
         hardConflict = true
-        score -= 900
+        score -= TOGETHER_RULE_PENALTY
+      } else {
+        score += 20
       }
-    } else if (
-      (partnerLockedTableId && partnerLockedTableId !== table.id) ||
-      emptySeatCount < 2
-    ) {
-      hardConflict = true
-      score -= 900
-    } else {
-      score += 20
-    }
   }
 
   for (const affinity of planner.affinities) {
@@ -634,11 +659,11 @@ function scoreSeatChoice(
       score += strategy === 'strict' ? 220 : 150
     } else if (forcedSeat) {
       hardConflict = true
-      score -= strategy === 'strict' ? 900 : 650
+      score -= strategy === 'strict' ? 2600 : 2200
     } else if (tableSeats.filter(Boolean).length < table.seatCount - 1) {
       score += strategy === 'strict' ? 40 : 18
     } else {
-      score -= 80
+      score -= strategy === 'strict' ? 1200 : 900
     }
   }
 
@@ -673,6 +698,46 @@ function getEffectiveLockedTableId(
   }
 
   return guestMap.get(guest.partnerId)?.lockedTableId ?? null
+}
+
+function getPlacementGroupGuestIds(
+  planner: PlannerData,
+  guest: Guest,
+  tableId: string,
+) {
+  const groupGuestIds = [guest.id]
+  const partnerId = guest.partnerId
+
+  if (!partnerId) {
+    return groupGuestIds
+  }
+
+  const partnerSeat = getGuestSeat(planner.seating, partnerId)
+  if (!partnerSeat || partnerSeat.tableId === tableId) {
+    groupGuestIds.push(partnerId)
+  }
+
+  return groupGuestIds
+}
+
+function getRemainingLockedDemandAfterPlacement(
+  planner: PlannerData,
+  guestMap: Map<string, Guest>,
+  tableId: string,
+  excludedGuestIds: Set<string>,
+) {
+  return planner.guests.filter((otherGuest) => {
+    if (excludedGuestIds.has(otherGuest.id)) {
+      return false
+    }
+
+    const effectiveLockedTableId = getEffectiveLockedTableId(otherGuest, guestMap)
+    if (effectiveLockedTableId !== tableId) {
+      return false
+    }
+
+    return getGuestSeat(planner.seating, otherGuest.id)?.tableId !== tableId
+  }).length
 }
 
 function addGuestAndPartnerToTarget(
@@ -1023,6 +1088,14 @@ function seatPartnerAtSameTable(
   }
 }
 
+function hasMustSitTogetherRule(planner: PlannerData, guestId: string) {
+  return planner.affinities.some(
+    (affinity) =>
+      affinity.score >= 100 &&
+      (affinity.guestAId === guestId || affinity.guestBId === guestId),
+  )
+}
+
 function sortGuestsByDifficulty(planner: PlannerData, affinityMap: Map<string, number>) {
   return [...planner.guests].sort((first, second) => {
     const firstDifficulty = getGuestDifficulty(first, planner, affinityMap)
@@ -1223,7 +1296,13 @@ export function autoAssignGuests(
 
       const bestValidOption = options.find((option) => !option.hardConflict)
       const fallbackOption = options[0]
-      const chosenOption = bestValidOption ?? fallbackOption
+      const shouldForceFallback = Boolean(
+        effectiveLockedTableId ||
+          hasMustSitTogetherRule(planner, guest.id) ||
+          (fallbackOption && fallbackOption.score > -FIXED_TABLE_PENALTY),
+      )
+      const chosenOption =
+        bestValidOption ?? (shouldForceFallback ? fallbackOption : undefined)
 
       if (!chosenOption) {
         continue
@@ -1333,14 +1412,14 @@ export function evaluatePlan(planner: PlannerData): PlanEvaluation {
     if (!guestSeat || !partnerSeat) {
       if (guestSeat || partnerSeat) {
         hardConflicts += 1
-        score -= 250
+        score -= 400
       }
       continue
     }
 
     if (guestSeat.tableId !== partnerSeat.tableId) {
       hardConflicts += 1
-      score -= 500
+      score -= 700
     }
   }
 
@@ -1353,7 +1432,7 @@ export function evaluatePlan(planner: PlannerData): PlanEvaluation {
     const guestSeat = seatedLookup.get(guest.id)
     if (!guestSeat || guestSeat.tableId !== effectiveLockedTableId) {
       hardConflicts += 1
-      score -= 500
+      score -= 1200
     }
   }
 
@@ -1371,7 +1450,7 @@ export function evaluatePlan(planner: PlannerData): PlanEvaluation {
       firstSeat.tableId !== secondSeat.tableId
     ) {
       hardConflicts += 1
-      score -= 500
+      score -= 950
     }
   }
 

@@ -111,6 +111,8 @@ The UI exposes four assignment strategies:
 - `bridge`: tries to split large circles into smaller compatible pods so guests are not isolated with total strangers
 - `strict`: lower tolerance for hard avoid scores and more weight for fixed rules
 
+When hard rules collide, strict mode prioritizes fixed-table locks ahead of softer partner-together fallbacks so reserved tables are not stolen by unrelated guests.
+
 ### Signals used in scoring
 
 - explicit affinity score

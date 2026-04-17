@@ -165,6 +165,8 @@ There are also multiple smart-assign styles:
 - `Bridge groups without isolating guests`: splits large circles into smaller pods while trying to make sure each guest still has at least one familiar or compatible anchor
 - `Strict rules first`: treats strong negative and hard together rules more aggressively
 
+When strict rules cannot all be satisfied at once, the planner now prioritizes fixed tables before softer same-table preferences.
+
 ### 5. Use the visual plan
 
 Switch from `Editor` to `Visual plan` when you want a more spatial view of the room.
