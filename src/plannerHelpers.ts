@@ -56,7 +56,7 @@ export function getStatusCopy(
   unseatedGuests: number,
 ) {
   if (hardConflicts > 0) {
-    return `${hardConflicts} hard conflict${hardConflicts > 1 ? 's' : ''} detected. Guests with a strong avoid score still share a table.`
+    return `${hardConflicts} hard rule conflict${hardConflicts > 1 ? 's' : ''} detected. Some fixed tables, couples, or must-avoid rules still need attention.`
   }
 
   if (unseatedGuests > 0) {
@@ -115,6 +115,13 @@ export function setGuestPartner(
   guestId: string,
   partnerId: string | null,
 ) {
+  const selectedGuest = planner.guests.find((guest) => guest.id === guestId)
+  const nextPartner = partnerId
+    ? planner.guests.find((guest) => guest.id === partnerId) ?? null
+    : null
+  const sharedLockedTableId =
+    selectedGuest?.lockedTableId ?? nextPartner?.lockedTableId ?? null
+
   return {
     ...planner,
     guests: planner.guests.map((guest) => {
@@ -122,6 +129,7 @@ export function setGuestPartner(
         return {
           ...guest,
           partnerId,
+          lockedTableId: partnerId ? sharedLockedTableId : guest.lockedTableId,
         }
       }
 
@@ -129,6 +137,7 @@ export function setGuestPartner(
         return {
           ...guest,
           partnerId: guestId,
+          lockedTableId: sharedLockedTableId,
         }
       }
 

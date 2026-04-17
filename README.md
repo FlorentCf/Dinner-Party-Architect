@@ -151,12 +151,12 @@ Examples:
 
 The planner supports two modes:
 
-- `Seat remaining guests`: keeps your existing placements and fills the gaps
+- `Seat remaining guests`: keeps your existing placements, but will reopen conflicting seats when needed to repair fixed tables, couples, or `+100` must-sit-together rules
 - `Rebuild all seating`: reshuffles the entire plan from scratch, but respects fixed-table locks and hard `+100` together rules
 
 You can always override any seat manually afterward. If somebody must stay at a table, set their `Fixed table` field in the guest editor before rebuilding.
 
-For couples, setting a fixed table on one partner automatically mirrors the same fixed table onto the other partner. When you manually move a seated guest, the app also tries to place their partner at the same table if there is an empty seat.
+For couples, setting a fixed table on one partner automatically mirrors the same fixed table onto the other partner. When you link two guests as partners, any existing fixed table also carries across to the other side of the couple. The auto-seater treats couples as a hard same-table rule, and when you manually move a seated guest, the app also tries to place their partner at the same table if there is an empty seat.
 
 There are also multiple smart-assign styles:
 

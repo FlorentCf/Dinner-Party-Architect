@@ -507,6 +507,7 @@ function scoreSeatChoice(
 ) {
   const guestMap = new Map(planner.guests.map((currentGuest) => [currentGuest.id, currentGuest]))
   const tableSeats = planner.seating[table.id] ?? []
+  const effectiveLockedTableId = getEffectiveLockedTableId(guest, guestMap)
   const socialWeight =
     strategy === 'social'
       ? 1.4
@@ -520,6 +521,13 @@ function scoreSeatChoice(
 
   let score = 0
   let hardConflict = false
+
+  if (effectiveLockedTableId && effectiveLockedTableId !== table.id) {
+    return {
+      score: -1000,
+      hardConflict: true,
+    }
+  }
 
   for (const occupant of occupants) {
     const pairScore = getPairScore(guest, occupant, affinityMap)
@@ -581,14 +589,27 @@ function scoreSeatChoice(
 
   if (guest.partnerId) {
     const partnerSeat = getGuestSeat(planner.seating, guest.partnerId)
+    const emptySeatCount = tableSeats.filter((seatGuestId) => seatGuestId === null).length
+    const partner = guestMap.get(guest.partnerId)
+    const partnerLockedTableId = partner
+      ? getEffectiveLockedTableId(partner, guestMap)
+      : null
+
     if (partnerSeat) {
       if (partnerSeat.tableId === table.id) {
-        score += 12
+        score += 28
       } else {
-        score -= 25
+        hardConflict = true
+        score -= 900
       }
-    } else if (tableSeats.filter(Boolean).length < table.seatCount - 1) {
-      score += 4
+    } else if (
+      (partnerLockedTableId && partnerLockedTableId !== table.id) ||
+      emptySeatCount < 2
+    ) {
+      hardConflict = true
+      score -= 900
+    } else {
+      score += 20
     }
   }
 
@@ -621,7 +642,7 @@ function scoreSeatChoice(
     }
   }
 
-  if (guest.lockedTableId === table.id) {
+  if (effectiveLockedTableId === table.id) {
     score += 75
   }
 
@@ -637,6 +658,369 @@ function getGuestSeat(seating: PlannerData['seating'], guestId: string) {
   }
 
   return null
+}
+
+function getEffectiveLockedTableId(
+  guest: Guest,
+  guestMap: Map<string, Guest>,
+) {
+  if (guest.lockedTableId) {
+    return guest.lockedTableId
+  }
+
+  if (!guest.partnerId) {
+    return null
+  }
+
+  return guestMap.get(guest.partnerId)?.lockedTableId ?? null
+}
+
+function addGuestAndPartnerToTarget(
+  targetGuestIds: Set<string>,
+  guestMap: Map<string, Guest>,
+  guestId: string,
+) {
+  targetGuestIds.add(guestId)
+  const partnerId = guestMap.get(guestId)?.partnerId
+  if (partnerId) {
+    targetGuestIds.add(partnerId)
+  }
+}
+
+function buildHardConstraintTargetGuestIds(planner: PlannerData) {
+  const guestMap = new Map(planner.guests.map((guest) => [guest.id, guest]))
+  const targetGuestIds = new Set<string>()
+
+  for (const guest of planner.guests) {
+    const seat = getGuestSeat(planner.seating, guest.id)
+    const effectiveLockedTableId = getEffectiveLockedTableId(guest, guestMap)
+
+    if (effectiveLockedTableId && seat?.tableId !== effectiveLockedTableId) {
+      addGuestAndPartnerToTarget(targetGuestIds, guestMap, guest.id)
+    }
+  }
+
+  const handledPartners = new Set<string>()
+  for (const guest of planner.guests) {
+    if (!guest.partnerId || handledPartners.has(guest.id)) {
+      continue
+    }
+
+    handledPartners.add(guest.id)
+    handledPartners.add(guest.partnerId)
+
+    const guestSeat = getGuestSeat(planner.seating, guest.id)
+    const partnerSeat = getGuestSeat(planner.seating, guest.partnerId)
+
+    if (
+      !guestSeat ||
+      !partnerSeat ||
+      guestSeat.tableId !== partnerSeat.tableId
+    ) {
+      addGuestAndPartnerToTarget(targetGuestIds, guestMap, guest.id)
+    }
+  }
+
+  for (const affinity of planner.affinities) {
+    if (affinity.score < 100) {
+      continue
+    }
+
+    const firstSeat = getGuestSeat(planner.seating, affinity.guestAId)
+    const secondSeat = getGuestSeat(planner.seating, affinity.guestBId)
+
+    if (!firstSeat || !secondSeat || firstSeat.tableId !== secondSeat.tableId) {
+      targetGuestIds.add(affinity.guestAId)
+      targetGuestIds.add(affinity.guestBId)
+    }
+  }
+
+  return targetGuestIds
+}
+
+function reserveLockedTableSeats(
+  planner: PlannerData,
+  targetGuestIds: Set<string>,
+) {
+  const guestMap = new Map(planner.guests.map((guest) => [guest.id, guest]))
+  let changed = true
+
+  while (changed) {
+    changed = false
+
+    for (const table of planner.tables) {
+      const requiredGuestIds = planner.guests
+        .filter(
+          (guest) => getEffectiveLockedTableId(guest, guestMap) === table.id,
+        )
+        .map((guest) => guest.id)
+
+      if (requiredGuestIds.length === 0) {
+        continue
+      }
+
+      const requiredGuestIdSet = new Set(requiredGuestIds)
+      const remainingOccupants = (planner.seating[table.id] ?? []).filter(
+        (guestId): guestId is string => Boolean(guestId && !targetGuestIds.has(guestId)),
+      )
+      const reservedOccupants = remainingOccupants.filter((guestId) =>
+        requiredGuestIdSet.has(guestId),
+      ).length
+      const missingReservedGuests = requiredGuestIds.length - reservedOccupants
+      const openSeats = table.seatCount - remainingOccupants.length
+      let seatsToFree = missingReservedGuests - openSeats
+
+      if (seatsToFree <= 0) {
+        continue
+      }
+
+      const evictableGuestIds = remainingOccupants.filter(
+        (guestId) => !requiredGuestIdSet.has(guestId),
+      )
+
+      for (const guestId of evictableGuestIds) {
+        if (seatsToFree <= 0) {
+          break
+        }
+
+        if (!targetGuestIds.has(guestId)) {
+          addGuestAndPartnerToTarget(targetGuestIds, guestMap, guestId)
+          seatsToFree -= 1
+          changed = true
+        }
+      }
+    }
+  }
+
+  return targetGuestIds
+}
+
+function reserveSeatsAtTable(
+  planner: PlannerData,
+  targetGuestIds: Set<string>,
+  tableId: string,
+  requiredGuestIds: string[],
+) {
+  const requiredGuestIdSet = new Set(requiredGuestIds)
+  const guestMap = new Map(planner.guests.map((guest) => [guest.id, guest]))
+  const table = planner.tables.find((currentTable) => currentTable.id === tableId)
+
+  if (!table) {
+    return targetGuestIds
+  }
+
+  const remainingOccupants = (planner.seating[table.id] ?? []).filter(
+    (guestId): guestId is string => Boolean(guestId && !targetGuestIds.has(guestId)),
+  )
+  const reservedOccupants = remainingOccupants.filter((guestId) =>
+    requiredGuestIdSet.has(guestId),
+  ).length
+  const missingReservedGuests = requiredGuestIds.length - reservedOccupants
+  const openSeats = table.seatCount - remainingOccupants.length
+  let seatsToFree = missingReservedGuests - openSeats
+
+  if (seatsToFree <= 0) {
+    return targetGuestIds
+  }
+
+  const evictableGuestIds = remainingOccupants.filter(
+    (guestId) => !requiredGuestIdSet.has(guestId),
+  )
+
+  for (const guestId of evictableGuestIds) {
+    if (seatsToFree <= 0) {
+      break
+    }
+
+    if (!targetGuestIds.has(guestId)) {
+      addGuestAndPartnerToTarget(targetGuestIds, guestMap, guestId)
+      seatsToFree -= 1
+    }
+  }
+
+  return targetGuestIds
+}
+
+function chooseTogetherTableId(
+  planner: PlannerData,
+  targetGuestIds: Set<string>,
+  guestIds: string[],
+) {
+  const guestMap = new Map(planner.guests.map((guest) => [guest.id, guest]))
+  const lockedTableId = guestIds
+    .map((guestId) => guestMap.get(guestId))
+    .filter(isPresent)
+    .map((guest) => getEffectiveLockedTableId(guest, guestMap))
+    .find(isPresent)
+
+  if (lockedTableId) {
+    return lockedTableId
+  }
+
+  const currentlySeatedTableId = guestIds
+    .map((guestId) => getGuestSeat(planner.seating, guestId))
+    .find(isPresent)?.tableId
+
+  if (currentlySeatedTableId) {
+    return currentlySeatedTableId
+  }
+
+  return planner.tables
+    .map((table) => {
+      const remainingOccupants = (planner.seating[table.id] ?? []).filter(
+        (guestId): guestId is string => Boolean(guestId && !targetGuestIds.has(guestId)),
+      )
+
+      return {
+        tableId: table.id,
+        openSeats: table.seatCount - remainingOccupants.length,
+        seatCount: table.seatCount,
+      }
+    })
+    .sort(
+      (first, second) =>
+        second.openSeats - first.openSeats || second.seatCount - first.seatCount,
+    )[0]?.tableId
+}
+
+function reserveTogetherGuestSeats(
+  planner: PlannerData,
+  targetGuestIds: Set<string>,
+) {
+  const handledPartners = new Set<string>()
+
+  for (const guest of planner.guests) {
+    if (!guest.partnerId || handledPartners.has(guest.id)) {
+      continue
+    }
+
+    handledPartners.add(guest.id)
+    handledPartners.add(guest.partnerId)
+
+    const tableId = chooseTogetherTableId(
+      planner,
+      targetGuestIds,
+      [guest.id, guest.partnerId],
+    )
+
+    if (tableId) {
+      reserveSeatsAtTable(planner, targetGuestIds, tableId, [
+        guest.id,
+        guest.partnerId,
+      ])
+    }
+  }
+
+  for (const affinity of planner.affinities) {
+    if (affinity.score < 100) {
+      continue
+    }
+
+    const tableId = chooseTogetherTableId(
+      planner,
+      targetGuestIds,
+      [affinity.guestAId, affinity.guestBId],
+    )
+
+    if (tableId) {
+      reserveSeatsAtTable(planner, targetGuestIds, tableId, [
+        affinity.guestAId,
+        affinity.guestBId,
+      ])
+    }
+  }
+
+  return targetGuestIds
+}
+
+function expandTargetGuestIds(
+  planner: PlannerData,
+  initialTargetGuestIds: Set<string>,
+) {
+  const targetGuestIds = new Set(initialTargetGuestIds)
+  let previousSize = -1
+
+  while (previousSize !== targetGuestIds.size) {
+    previousSize = targetGuestIds.size
+    reserveLockedTableSeats(planner, targetGuestIds)
+    reserveTogetherGuestSeats(planner, targetGuestIds)
+  }
+
+  return targetGuestIds
+}
+
+function clearGuestAssignments(
+  seating: PlannerData['seating'],
+  guestIdsToClear: Set<string>,
+) {
+  return Object.fromEntries(
+    Object.entries(seating).map(([tableId, seats]) => [
+      tableId,
+      seats.map((seatGuestId) =>
+        seatGuestId && guestIdsToClear.has(seatGuestId) ? null : seatGuestId,
+      ),
+    ]),
+  )
+}
+
+function shouldPrioritizeGuest(
+  guest: Guest,
+  planner: PlannerData,
+  guestMap: Map<string, Guest>,
+) {
+  return Boolean(
+    guest.partnerId ||
+      getEffectiveLockedTableId(guest, guestMap) ||
+      planner.affinities.some(
+        (affinity) =>
+          affinity.score >= 100 &&
+          (affinity.guestAId === guest.id || affinity.guestBId === guest.id),
+      ),
+  )
+}
+
+function seatPartnerAtSameTable(
+  planner: PlannerData,
+  table: Table,
+  guestId: string,
+  seatIndex: number,
+) {
+  const guestMap = new Map(planner.guests.map((guest) => [guest.id, guest]))
+  const guest = guestMap.get(guestId)
+  const partnerId = guest?.partnerId
+
+  if (!guest || !partnerId || getGuestSeat(planner.seating, partnerId)) {
+    return
+  }
+
+  const partner = guestMap.get(partnerId)
+  if (!partner) {
+    return
+  }
+
+  const effectiveLockedTableId = getEffectiveLockedTableId(partner, guestMap)
+  if (effectiveLockedTableId && effectiveLockedTableId !== table.id) {
+    return
+  }
+
+  const seats = planner.seating[table.id] ?? []
+  const preferredSeatIndexes = [
+    ...getAdjacentIndexes(seatIndex, table.seatCount, table),
+    ...Array.from({ length: table.seatCount }, (_, index) => index),
+  ]
+  const seenSeatIndexes = new Set<number>()
+
+  for (const preferredSeatIndex of preferredSeatIndexes) {
+    if (seenSeatIndexes.has(preferredSeatIndex)) {
+      continue
+    }
+
+    seenSeatIndexes.add(preferredSeatIndex)
+    if (seats[preferredSeatIndex] === null) {
+      seats[preferredSeatIndex] = partnerId
+      return
+    }
+  }
 }
 
 function sortGuestsByDifficulty(planner: PlannerData, affinityMap: Map<string, number>) {
@@ -751,6 +1135,19 @@ export function autoAssignGuests(
   mode: 'all' | 'unseated' = 'unseated',
   strategy: AutoAssignStrategy = 'balanced',
 ) {
+  const guestMap = new Map(planner.guests.map((guest) => [guest.id, guest]))
+  const targetGuestIds =
+    mode === 'all'
+      ? new Set(planner.guests.map((guest) => guest.id))
+      : expandTargetGuestIds(
+          planner,
+          new Set([
+            ...planner.guests
+              .filter((guest) => !getGuestSeat(planner.seating, guest.id))
+              .map((guest) => guest.id),
+            ...buildHardConstraintTargetGuestIds(planner),
+          ]),
+        )
   const basePlanner: PlannerData =
     mode === 'all'
       ? {
@@ -759,15 +1156,24 @@ export function autoAssignGuests(
         }
       : {
           ...planner,
-          seating: cloneSeating(planner.seating),
+          seating: clearGuestAssignments(
+            cloneSeating(planner.seating),
+            targetGuestIds,
+          ),
         }
 
   const affinityMap = buildAffinityMap(planner.affinities)
   const orderedGuests = sortGuestsByDifficulty(planner, affinityMap)
-  const targetGuests =
-    mode === 'all'
-      ? orderedGuests
-      : orderedGuests.filter((guest) => !getGuestSeat(planner.seating, guest.id))
+  const prioritizedGuests = orderedGuests.filter(
+    (guest) =>
+      targetGuestIds.has(guest.id) &&
+      shouldPrioritizeGuest(guest, planner, guestMap),
+  )
+  const flexibleGuests = orderedGuests.filter(
+    (guest) =>
+      targetGuestIds.has(guest.id) &&
+      !shouldPrioritizeGuest(guest, planner, guestMap),
+  )
 
   let bestPlanner = basePlanner
   let bestScore = getStrategyPlanScore(basePlanner, strategy, affinityMap)
@@ -782,7 +1188,12 @@ export function autoAssignGuests(
       seating: cloneSeating(basePlanner.seating),
     }
 
-    for (const guest of shuffle(targetGuests)) {
+    for (const guest of [...prioritizedGuests, ...shuffle(flexibleGuests)]) {
+      if (getGuestSeat(workingPlanner.seating, guest.id)) {
+        continue
+      }
+
+      const effectiveLockedTableId = getEffectiveLockedTableId(guest, guestMap)
       const options = workingPlanner.tables
         .flatMap((table) =>
           Array.from({ length: table.seatCount }, (_, seatIndex) => ({
@@ -794,7 +1205,7 @@ export function autoAssignGuests(
         .filter((option) => !option.currentGuestId)
         .filter(
           (option) =>
-            !guest.lockedTableId || option.table.id === guest.lockedTableId,
+            !effectiveLockedTableId || option.table.id === effectiveLockedTableId,
         )
         .map((option) => ({
           ...option,
@@ -819,6 +1230,12 @@ export function autoAssignGuests(
       }
 
       workingPlanner.seating[chosenOption.table.id][chosenOption.seatIndex] = guest.id
+      seatPartnerAtSameTable(
+        workingPlanner,
+        chosenOption.table,
+        guest.id,
+        chosenOption.seatIndex,
+      )
     }
 
     const strategyScore = getStrategyPlanScore(workingPlanner, strategy, affinityMap)
@@ -915,23 +1332,26 @@ export function evaluatePlan(planner: PlannerData): PlanEvaluation {
 
     if (!guestSeat || !partnerSeat) {
       if (guestSeat || partnerSeat) {
-        score -= 6
+        hardConflicts += 1
+        score -= 250
       }
       continue
     }
 
     if (guestSeat.tableId !== partnerSeat.tableId) {
-      score -= 24
+      hardConflicts += 1
+      score -= 500
     }
   }
 
   for (const guest of planner.guests) {
-    if (!guest.lockedTableId) {
+    const effectiveLockedTableId = getEffectiveLockedTableId(guest, guestMap)
+    if (!effectiveLockedTableId) {
       continue
     }
 
     const guestSeat = seatedLookup.get(guest.id)
-    if (guestSeat && guestSeat.tableId !== guest.lockedTableId) {
+    if (!guestSeat || guestSeat.tableId !== effectiveLockedTableId) {
       hardConflicts += 1
       score -= 500
     }
@@ -945,7 +1365,11 @@ export function evaluatePlan(planner: PlannerData): PlanEvaluation {
     const firstSeat = seatedLookup.get(affinity.guestAId)
     const secondSeat = seatedLookup.get(affinity.guestBId)
 
-    if (firstSeat && secondSeat && firstSeat.tableId !== secondSeat.tableId) {
+    if (
+      !firstSeat ||
+      !secondSeat ||
+      firstSeat.tableId !== secondSeat.tableId
+    ) {
       hardConflicts += 1
       score -= 500
     }

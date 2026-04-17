@@ -97,11 +97,12 @@ For a small local wedding planner, the tradeoff is good:
 The engine:
 
 1. ranks guests by difficulty
-2. optionally clears all seating or only fills unseated guests
+2. optionally clears all seating or only reopens the guests involved in hard-rule conflicts
 3. filters table choices when a guest has a fixed-table lock
-4. evaluates each resulting plan
-5. tries multiple randomized greedy placement passes
-6. keeps the highest scoring result
+4. reserves enough seats for locked guests, couples, and `+100` same-table pairs before filling around them
+5. evaluates each resulting plan
+6. tries multiple randomized greedy placement passes
+7. keeps the highest scoring result
 
 The UI exposes four assignment strategies:
 
@@ -114,7 +115,7 @@ The UI exposes four assignment strategies:
 
 - explicit affinity score
 - fixed-table lock
-- partner bonus
+- partner hard-rule and bonus
 - shared circle bonus
 - shared tag bonus
 - age-band and age-gap nudges
